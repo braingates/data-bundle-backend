@@ -1,0 +1,76 @@
+import axios from "axios";
+import { getPackageId } from "../services/bundleService.js";
+
+export const sendMTN = async (order) => {
+  const NETWORK = "MTN";
+
+  try {
+    if (!order?.phone || !order?.bundle || !order?.reference) {
+      throw new Error("Missing required order fields");
+    }
+
+    const package_id = await getPackageId(NETWORK, order.bundle);
+
+    if (!package_id) {
+      throw new Error(`Missing packageId for ${NETWORK} ${order.bundle}`);
+    }
+
+    // ==========================
+    // CORRECT PAYLOAD
+    // ==========================
+    const payload = {
+      api_key: process.env.MTN_API_KEY,
+      package_id,
+      phone: order.phone,
+      reference: order.reference
+    };
+
+console.log("📤 MTN REQUEST:", payload);
+
+/*
+const response = await axios.post(
+  process.env.MTN_VENDOR_URL,
+  payload,
+  {
+    headers: {
+      "Content-Type": "application/json"
+    },
+    timeout: 15000
+  }
+);
+*/
+
+    const response = await axios.post(
+      process.env.MTN_VENDOR_URL,
+      payload,
+      {
+        headers: {
+          Authorization: `Bearer ${process.env.MTN_API_KEY}`,
+          "Content-Type": "application/json"
+        },
+        timeout: 15000
+      }
+    );
+
+    return {
+      success: true,
+      status: response.status,
+      data: response.data
+    };
+
+  } catch (err) {
+    console.log("❌ MTN ERROR =====================");
+    console.log("Reference:", order.reference);
+    console.log("Phone:", order.phone);
+    console.log("Bundle:", order.bundle);
+    console.log("Message:", err.response?.data || err.message);
+
+    return {
+      success: false,
+      network: NETWORK,
+      reference: order.reference,
+      message: err.response?.data || err.message,
+      status: err.response?.status || null
+    };
+  }
+};
