@@ -12,6 +12,8 @@ import adminRoutes from "./src/routes/adminRoutes.js";
 
 await import("./src/jobs/vendorProcessor.js");
 await import("./src/jobs/statusSyncJob.js");
+import bundleRoutes from "./src/routes/bundleRoutes.js";
+
 const app = express();
 const PORT = process.env.PORT || 5001;
 
@@ -59,6 +61,7 @@ app.use("/api/admin", (req, res, next) => {
 app.use("/api/payments", paymentRoutes);
 app.use("/api/orders", trackingRoutes);
 app.use("/api/admin", adminRoutes);
+app.use("/api/bundles", bundleRoutes);
 
 // ==========================
 // HEALTH CHECK
@@ -91,7 +94,7 @@ app.get("/health", (req, res) => {
 })();
 
 
-import bundleRoutes from "./src/routes/bundleRoutes.js";
 
-app.use("/api/bundles", bundleRoutes);
+
+
 
