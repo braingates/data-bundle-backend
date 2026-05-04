@@ -1,12 +1,14 @@
-/*
 
+/*
 import express from "express";
 import cors from "cors";
 
-import orderRoutes from "./routes/orderRoutes.js";
-import paymentRoutes from "./routes/paymentRoutes.js";
-import trackingRoutes from "./routes/trackRoutes.js";
-import adminRoutes from "./routes/adminRoutes.js";
+import orderRoutes from "../routes/orderRoutes.js";
+import paymentRoutes from "../routes/paymentRoutes.js";
+import trackingRoutes from "../routes/trackRoutes.js";
+import adminRoutes from "../routes/adminRoutes.js";
+
+
 
 const app = express();
 
@@ -15,6 +17,7 @@ const app = express();
 // ==========================
 app.use(cors());
 app.use(express.json());
+
 
 // optional: request logger (helps debugging)
 app.use((req, res, next) => {
@@ -30,6 +33,7 @@ app.use("/api/payments", paymentRoutes);
 app.use("/api/track", trackingRoutes);
 app.use("/api/admin", adminRoutes);
 console.log("TRACK ROUTES LOADED");
+
 
 
 // ==========================
@@ -52,11 +56,15 @@ app.use((err, req, res, next) => {
   });
 });
 
+/////////////////////////////
 
 
 export default app;
 
 */
+
+
+
 
 import express from "express";
 import cors from "cors";

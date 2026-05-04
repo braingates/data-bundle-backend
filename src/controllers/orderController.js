@@ -47,7 +47,7 @@ export const createOrder = async (req, res) => {
       // DEFAULT STATES (CRITICAL)
       paymentStatus: "pending",
       vendorStatus: "pending",
-      orderStatus: "created"
+      orderStatus: "pending"
     });
 
     res.status(201).json(order);

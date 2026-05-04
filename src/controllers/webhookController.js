@@ -41,7 +41,7 @@ export const paystackWebhook = async (req, res) => {
       // UPDATE ORDER
       // ==========================
       order.paymentStatus = "completed";
-      order.orderStatus = "paid";
+      order.orderStatus = "pending";
       await order.save();
 
       // ==========================

@@ -1,3 +1,5 @@
+
+/*
 import dotenv from "dotenv";
 dotenv.config();
 
@@ -13,11 +15,15 @@ import adminRoutes from "./src/routes/adminRoutes.js";
 const app = express();
 const PORT = process.env.PORT || 5001;
 
+
+
+
 // ==========================
 // CORS (FULLY FIXED)
 // ==========================
 const corsOptions = {
-  origin: ["http://127.0.0.1:5500", "http://localhost:5500"],
+  origin: ["https://megabytestation.vercel.app", "http://localhost:5500",
+    "http://127.0.0.1:5500"],
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization", "x-api-key"],
 };
@@ -88,3 +94,43 @@ app.get("/health", (req, res) => {
 import bundleRoutes from "./src/routes/bundleRoutes.js";
 
 app.use("/api/bundles", bundleRoutes);
+
+*/
+
+import dotenv from "dotenv";
+dotenv.config();
+
+import http from "http";
+import app from "./app.js";
+
+import { connectDB } from "./src/config/db.js";
+
+const PORT = process.env.PORT || 5001;
+
+// ==========================
+// START SERVER
+// ==========================
+(async () => {
+  try {
+    // 1. Connect DB
+    await connectDB();
+    console.log("MongoDB connected");
+
+    // 2. Start background jobs
+    const { startBundleSyncJob } = await import("./src/jobs/bundleSyncJob.js");
+    await startBundleSyncJob();
+
+    await import("./src/jobs/vendorProcessor.js");
+
+    // 3. Start server
+    const server = http.createServer(app);
+
+    server.listen(PORT, () => {
+      console.log(`🚀 Server running on port ${PORT}`);
+    });
+
+  } catch (err) {
+    console.error("❌ Server startup failed:", err);
+    process.exit(1);
+  }
+})();

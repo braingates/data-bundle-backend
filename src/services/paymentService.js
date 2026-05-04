@@ -9,7 +9,7 @@ export const initPayment = async (order) => {
         email: order.email || "customer@email.com",
         amount: Number(order.amount) * 100,
         reference: order.reference,
-        callback_url: "http://127.0.0.1:5500/code/megabyte.html"
+        callback_url: "https://megabytestation.vercel.app/"
       },
       {
         headers: {

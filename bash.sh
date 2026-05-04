@@ -54,6 +54,12 @@ curl -X POST https://megabytehub.store/api/create_order.php \
 }'
 
 
+git add .
+git commit -m "Initial commit"
+git branch -M main
+git remote add origin https://github.com/braingates/mega-data.git
+git push -u origin main
+
 
 
 

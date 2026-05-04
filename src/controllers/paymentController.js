@@ -65,7 +65,7 @@ export const createPayment = async (req, res) => {
       reference,
       paymentStatus: "pending",
       vendorStatus: "pending",
-      orderStatus: "created"
+      orderStatus: "pending"
     });
 
     console.log("🧾 Order created:", order);
@@ -79,7 +79,7 @@ export const createPayment = async (req, res) => {
       payment = await initPayment({
         reference: order.reference,
         amount: numericAmount,
-        email: "customer@email.com"
+        email: `${phone}@megabytestation`//"customer@email.com"
       });
     } catch (payErr) {
       console.error("❌ Paystack init failed:", payErr.response?.data || payErr.message);
