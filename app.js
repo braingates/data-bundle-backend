@@ -51,6 +51,18 @@ app.use((err, req, res, next) => {
 });
 
 
+app.get("/api", (req, res) => {
+  res.json({
+    message: "Welcome to Data Bundle API",
+    endpoints: {
+      orders: "/api/orders",
+      payments: "/api/payments",
+      track: "/api/orders/track-order",
+      status: "ok"
+    }
+  });
+});
+
 
 export default app;
 
