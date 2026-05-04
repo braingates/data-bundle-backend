@@ -7,7 +7,7 @@ const router = express.Router();
 // ❌ REMOVE /api/payments here (already mounted in app.js)
 router.post("/create", createPayment);
 //import express from "express";
-import Order from "../Order.js";
+import Order from "../models/Order.js";
 
 
 
@@ -30,7 +30,7 @@ router.get("/recent/:phone", async (req, res) => {
   }
 });
 
-import { verifyApiKey } from "../../middleware/auth.js";
+import { verifyApiKey } from "../middleware/auth.js";
 
 router.get("/admin/orders", verifyApiKey, async (req, res) => {
   // protected route
