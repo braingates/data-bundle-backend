@@ -79,7 +79,7 @@ export const createPayment = async (req, res) => {
       payment = await initPayment({
         reference: order.reference,
         amount: numericAmount,
-        email: `${phone}@megabytestation`//"customer@email.com"
+        email: `${phone}@megabytestation.com`//"customer@email.com"
       });
     } catch (payErr) {
       console.error("❌ Paystack init failed:", payErr.response?.data || payErr.message);
