@@ -83,4 +83,38 @@ router.get("/admin/orders", verifyApiKey, async (req, res) => {
   // protected route
 });
 
+
+
+//import express from "express";
+//import Order from "../models/Order.js";
+
+//const router = express.Router();
+
+// ==========================
+// GET RECENT ORDERS BY PHONE
+// ==========================
+router.get("/recent/:phone", async (req, res) => {
+  try {
+    const { phone } = req.params;
+
+    if (!phone) {
+      return res.status(400).json({ error: "Phone required" });
+    }
+
+    const orders = await Order.find({ phone })
+      .sort({ createdAt: -1 }) // newest first
+      .limit(10);
+
+    res.json({
+      success: true,
+      orders
+    });
+
+  } catch (err) {
+    console.error("Fetch orders error:", err.message);
+    res.status(500).json({ error: "Failed to fetch orders" });
+  }
+});
+
+//export default router;
 export default router;
