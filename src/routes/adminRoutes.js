@@ -1,5 +1,8 @@
 import express from "express";
 import Order from "../models/Order.js";
+// correct (from routes folder)
+import { verifyApiKey } from "../middleware/auth.js";
+
 
 const router = express.Router();
 
