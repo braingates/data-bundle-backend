@@ -75,5 +75,13 @@ router.get("/orders", async (req, res) => {
   }
 });
 
+router.get("/orders", verifyApiKey, async (req, res) => {
+  const orders = await Order.find()
+    .sort({ createdAt: -1 })
+    .limit(50);
+
+  res.json(orders);
+});
+
 // ✅ MUST BE LAST LINE
 export default router;

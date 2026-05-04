@@ -10,6 +10,8 @@ import paymentRoutes from "./src/routes/paymentRoutes.js";
 import trackingRoutes from "./src/routes/trackRoutes.js";
 import adminRoutes from "./src/routes/adminRoutes.js";
 
+await import("./src/jobs/vendorProcessor.js");
+await import("./src/jobs/statusSyncJob.js");
 const app = express();
 const PORT = process.env.PORT || 5001;
 

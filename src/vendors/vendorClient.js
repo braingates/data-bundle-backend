@@ -55,3 +55,26 @@ export const sendToVendor = async (order) => {
     };
   }
 };
+
+export const getVendorStatus = async (reference) => {
+  try {
+    const res = await axios.get(
+      `${process.env.VENDOR_STATUS_URL}/${reference}`
+    );
+
+    const data = res.data;
+
+    return {
+      success: true,
+      status: data.status || data.state,
+      message: data.message,
+      raw: data
+    };
+
+  } catch (err) {
+    return {
+      success: false,
+      message: err.response?.data?.message || err.message
+    };
+  }
+};
