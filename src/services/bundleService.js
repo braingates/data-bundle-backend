@@ -93,11 +93,7 @@ export const getPackageId = async (network, bundleName) => {
 
 
 
-
-
-
-
-
+/*
 
 // services/bundleService.js
 import Bundle from "../models/Bundle.js";
@@ -150,3 +146,5 @@ export const getPackageId = async (network, bundleName) => {
   console.log(`✅ Using vendor ID: ${vendorId}`);
   return vendorId;
 };
+
+*/
