@@ -90,3 +90,63 @@ export const getPackageId = async (network, bundleName) => {
 
   return bundle.packageId;
 };
+
+
+
+
+
+
+
+
+
+// services/bundleService.js
+import Bundle from "../models/Bundle.js";
+
+export const getPackageId = async (network, bundleName) => {
+  if (!network || !bundleName) {
+    throw new Error("Network or bundleName missing");
+  }
+
+  const cleanNetwork = network.trim().toUpperCase();
+  const cleanBundle = bundleName.trim().toUpperCase();
+
+  console.log(`🔍 Looking up: ${cleanNetwork} ${cleanBundle}`);
+
+  // ONLY check database - NO FALLBACKS
+  const bundle = await Bundle.findOne({
+    network: cleanNetwork,
+    name: cleanBundle
+  });
+
+  if (!bundle) {
+    console.error(`❌ No bundle found in database: ${cleanNetwork} ${cleanBundle}`);
+    throw new Error(`Bundle not found in database: ${cleanNetwork} ${cleanBundle}. Run bundle sync.`);
+  }
+
+  // Get the vendor's actual ID (UUID)
+  const vendorId = bundle.vendorPackageId || bundle.packageId;
+
+  if (!vendorId) {
+    console.error(`❌ Bundle found but no package ID: ${cleanNetwork} ${cleanBundle}`);
+    console.error(`   packageId: ${bundle.packageId}`);
+    console.error(`   vendorPackageId: ${bundle.vendorPackageId}`);
+    throw new Error(`No package ID for ${cleanNetwork} ${cleanBundle}. Update database.`);
+  }
+
+  // ✅ Only return if it looks like a real vendor ID (UUID format)
+  // Real vendor IDs are UUIDs like "0cec6c99-8bd1-4b96-8965-a612b13e864e"
+  // NOT strings like "tel_2gb_basic"
+  if (vendorId.includes("_basic") || vendorId.includes("_pro") || vendorId.length < 20) {
+    console.error(`❌ Invalid vendor ID format: ${vendorId}`);
+    console.error(`   This looks like a fallback string, not a real vendor UUID`);
+    console.error(`   Network: ${cleanNetwork}, Bundle: ${cleanBundle}`);
+    console.error(`   Run the bundle sync to get real UUIDs from the vendor`);
+    throw new Error(
+      `Invalid package ID for ${cleanNetwork} ${cleanBundle}: ${vendorId}. ` +
+      `Run bundle sync to fetch real vendor IDs.`
+    );
+  }
+
+  console.log(`✅ Using vendor ID: ${vendorId}`);
+  return vendorId;
+};
