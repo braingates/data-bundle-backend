@@ -20,7 +20,6 @@ const VENDOR_PACKAGE_FALLBACKS = {
     "50GB": "mtn_50gb_pro"
   },
   TELECEL: {
-    
     "2GB": "tel_2gb_basic",
     "3GB": "tel_3gb_basic",
     "5GB": "tel_5gb_basic",
