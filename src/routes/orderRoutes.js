@@ -1,20 +1,13 @@
+// orderRoutes.js
 import express from "express";
-import { createPayment } from "../controllers/paymentController.js";
-
+import Order from "../models/Order.js";
+import { verifyApiKey } from "../middleware/auth.js";
 
 const router = express.Router();
 
-// ❌ REMOVE /api/payments here (already mounted in app.js)
-router.post("/create", createPayment);
-//import express from "express";
-import Order from "../models/Order.js";
-
-
-
 // ==========================
-// TRACK ORDER (PHONE OR REF)
+// GET ORDERS BY PHONE (RECENT)
 // ==========================
-// GET recent orders by phone
 router.get("/recent/:phone", async (req, res) => {
   try {
     const { phone } = req.params;
@@ -30,8 +23,19 @@ router.get("/recent/:phone", async (req, res) => {
   }
 });
 
-import { verifyApiKey } from "../middleware/auth.js";
-
+// ==========================
+// ADMIN: GET ALL ORDERS
+// ==========================
 router.get("/admin/orders", verifyApiKey, async (req, res) => {
-  // protected route
+  try {
+    const orders = await Order.find()
+      .sort({ createdAt: -1 })
+      .limit(50);
+
+    res.json(orders);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
+
+export default router;

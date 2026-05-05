@@ -1,8 +1,7 @@
+// adminRoutes.js - REMOVE DUPLICATE ROUTE
 import express from "express";
 import Order from "../models/Order.js";
-// correct (from routes folder)
 import { verifyApiKey } from "../middleware/auth.js";
-
 
 const router = express.Router();
 
@@ -12,45 +11,26 @@ const router = express.Router();
 router.get("/stats", async (req, res) => {
   try {
     const total = await Order.countDocuments();
-
-    const success = await Order.countDocuments({
-      vendorStatus: "success"
-    });
-
-    const revenueData = await Order.find({
-      paymentStatus: "completed"
-    });
-
-    const revenue = revenueData.reduce(
-      (sum, o) => sum + (Number(o.amount) || 0),
-      0
-    );
+    const success = await Order.countDocuments({ vendorStatus: "success" });
+    const revenueData = await Order.find({ paymentStatus: "completed" });
+    const revenue = revenueData.reduce((sum, o) => sum + (Number(o.amount) || 0), 0);
 
     res.json({ total, success, revenue });
-
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
 // ==========================
-// ORDERS (FILTERABLE)
+// ORDERS (FILTERABLE) - PROTECTED
 // ==========================
-router.get("/orders", async (req, res) => {
+router.get("/orders", verifyApiKey, async (req, res) => {
   try {
-    const {
-      page = 1,
-      limit = 50,
-      network,
-      status,
-      search
-    } = req.query;
-
+    const { page = 1, limit = 50, network, status, search } = req.query;
     const query = {};
 
     if (network) query.network = network;
     if (status) query.vendorStatus = status;
-
     if (search) {
       query.$or = [
         { reference: new RegExp(search, "i") },
@@ -71,20 +51,10 @@ router.get("/orders", async (req, res) => {
       page: Number(page),
       pages: Math.ceil(total / limit)
     });
-
   } catch (err) {
     console.error("ADMIN ORDERS ERROR:", err);
     res.status(500).json({ error: err.message });
   }
 });
 
-router.get("/orders", verifyApiKey, async (req, res) => {
-  const orders = await Order.find()
-    .sort({ createdAt: -1 })
-    .limit(50);
-
-  res.json(orders);
-});
-
-// ✅ MUST BE LAST LINE
 export default router;

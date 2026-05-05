@@ -84,13 +84,7 @@ router.get("/admin/orders", verifyApiKey, async (req, res) => {
 });
 
 
-router.get("/orders", verifyApiKey, async (req, res) => {
-  const orders = await Order.find()
-    .sort({ createdAt: -1 })
-    .limit(50);
 
-  res.json(orders);
-});
 
 
 export default router;
