@@ -12,7 +12,9 @@ export const VENDOR_MAP = {
 
   AIRTELTIGO: {
     "1GB": "AIR_1GB_ID",
-    "2GB": "AIR_2GB_ID"
+    "2GB": "AIR_2GB_ID",
+    "1GB": "AIR_1GB_ID",
+    "2GB": "AIR_2GB_ID",
   }
 };
 

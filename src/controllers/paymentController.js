@@ -24,7 +24,7 @@ export const createPayment = async (req, res) => {
 
    
 
-    const numericAmount = Math.round(Number(amount));
+    const numericAmount = Number(amount);
 
 if (isNaN(numericAmount) || numericAmount <= 0) {
   return res.status(400).json({

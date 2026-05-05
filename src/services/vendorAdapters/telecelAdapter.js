@@ -15,15 +15,15 @@ const getTelecelBundlesUrl = () => {
   return `${process.env.TELECEL_VENDOR_URL}/packages`;
 };
 
-export const fetchTelecelBundles = async () => {
+export const fetchMTNBundles = async () => {
   try {
-    const telecelUrl = getTelecelBundlesUrl();
+    const mtbUrl = getMtnBundlesUrl();
 
-    if (!telecelUrl) {
+    if (!mtbUrl) {
       throw new Error("TELECEL bundle URL is not configured");
     }
 
-    const res = await axios.get(telecelUrl, {
+    const res = await axios.get(mtbUrl, {
       headers: {
         Authorization: `Bearer ${process.env.TELECEL_API_KEY}`
       }
