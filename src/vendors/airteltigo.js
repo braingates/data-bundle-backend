@@ -1,52 +1,45 @@
-
-
 import axios from "axios";
 import { getPackageId } from "../services/bundleService.js";
 
 export const sendAirtel = async (order) => {
-  const NETWORK = "AIRTELTIGO";
+  const NETWORK = "AirtelTigo";
 
   try {
-    // ==========================
-    // 1. VALIDATION
-    // ==========================
-    if (!order?.phone) throw new Error("Missing phone");
-    if (!order?.bundle) throw new Error("Missing bundle");
-    if (!order?.reference) throw new Error("Missing reference");
-
-    if (!process.env.AIRTEL_VENDOR_URL) {
-      throw new Error("AIRTEL_VENDOR_URL not configured");
+    if (!order?.phone || !order?.bundle || !order?.reference) {
+      throw new Error("Missing required order fields");
     }
 
-    if (!process.env.AIRTEL_API_KEY) {
-      throw new Error("AIRTEL_API_KEY not configured");
-    }
-
-    // ==========================
-    // 2. GET PACKAGE ID
-    // ==========================
     const package_id = await getPackageId(NETWORK, order.bundle);
 
     if (!package_id) {
-      throw new Error(`❌ Bundle not found: ${NETWORK} ${order.bundle}`);
+      throw new Error(`Missing packageId for ${NETWORK} ${order.bundle}`);
     }
 
     // ==========================
-    // 3. BUILD CLEAN PAYLOAD
+    // CORRECT PAYLOAD
     // ==========================
     const payload = {
-      phone: order.phone,
+      api_key: process.env.AIRTEL_API_KEY,
       package_id,
-      bundle: order.bundle,
+      phone: order.phone,
       reference: order.reference
     };
 
-    console.log("📤 AIRTEL REQUEST:", payload);
-    console.log("🔑 AIRTEL URL:", process.env.AIRTELTIGO_VENDOR_URL);
+console.log("📤 AIRTEL REQUEST:", payload);
 
-    // ==========================
-    // 4. SEND REQUEST
-    // ==========================
+/*
+const response = await axios.post(
+  process.env.MTN_VENDOR_URL,
+  payload,
+  {
+    headers: {
+      "Content-Type": "application/json"
+    },
+    timeout: 15000
+  }
+);
+*/
+
     const response = await axios.post(
       process.env.AIRTEL_VENDOR_URL,
       payload,
@@ -59,33 +52,24 @@ export const sendAirtel = async (order) => {
       }
     );
 
-    console.log("📥 AIRTEL RESPONSE STATUS:", response.status);
-    console.log("📥 AIRTEL RESPONSE DATA:", response.data);
-
     return {
       success: true,
-      data: response.data,
       status: response.status,
-      network: NETWORK
+      data: response.data
     };
 
   } catch (err) {
-    // ==========================
-    // 5. FULL DEBUG LOGGING
-    // ==========================
     console.log("❌ AIRTEL ERROR =====================");
-    console.log("Reference:", order?.reference);
-    console.log("Phone:", order?.phone);
-    console.log("Bundle:", order?.bundle);
-    console.log("Status:", err.response?.status);
-    console.log("Data:", err.response?.data);
-    console.log("Message:", err.message);
+    console.log("Reference:", order.reference);
+    console.log("Phone:", order.phone);
+    console.log("Bundle:", order.bundle);
+    console.log("Message:", err.response?.data || err.message);
 
     return {
       success: false,
       network: NETWORK,
-      reference: order?.reference,
-      error: err.response?.data || err.message,
+      reference: order.reference,
+      message: err.response?.data || err.message,
       status: err.response?.status || null
     };
   }
