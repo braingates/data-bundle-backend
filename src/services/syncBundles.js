@@ -66,7 +66,7 @@ export const syncTelecel = async () => {
 
     for (const pkg of packages) {
       await Bundle.findOneAndUpdate(
-        { network: "TELECEL", name: pkg.name },
+        { network: "Telecel", name: pkg.name },
         {
           price: pkg.price,
           packageId: pkg.id
@@ -97,7 +97,7 @@ export const syncAirtelTigo = async () => {
 
     for (const pkg of packages) {
       await Bundle.findOneAndUpdate(
-        { network: "AIRTELTIGO", name: pkg.name },
+        { network: "AirtelTigo", name: pkg.name },
         {
           price: pkg.price,
           packageId: pkg.id

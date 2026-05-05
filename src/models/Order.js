@@ -24,7 +24,7 @@ const orderSchema = new mongoose.Schema(
     network: {
       type: String,
       required: true,
-      enum: ["MTN", "Telecel", "AirtelTigo"]
+      enum: ["MTN", "Telecel", "TELECEL", "AIRTELTIGO", "AirtelTigo"]
     },
 
     bundle: {
