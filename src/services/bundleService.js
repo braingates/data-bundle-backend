@@ -1,4 +1,4 @@
-
+/*
 import Bundle from "../models/Bundle.js";
 
 const VENDOR_PACKAGE_FALLBACKS = {
@@ -91,7 +91,7 @@ export const getPackageId = async (network, bundleName) => {
   return bundle.packageId;
 };
 
-
+*/
 
 /*
 
@@ -148,3 +148,119 @@ export const getPackageId = async (network, bundleName) => {
 };
 
 */
+
+
+/*
+import Bundle from "../models/Bundle.js";
+
+export const getPackageId = async (network, bundleName) => {
+  if (!network || !bundleName) {
+    throw new Error("Network or bundleName missing");
+  }
+
+  const cleanNetwork = network.trim().toUpperCase();
+  const cleanBundle = bundleName.trim().toUpperCase();
+
+  console.log(`🔍 Looking up: ${cleanNetwork} ${cleanBundle}`);
+
+  const bundle = await Bundle.findOne({
+    network: cleanNetwork,
+    name: cleanBundle
+  });
+
+  if (!bundle) {
+    throw new Error(
+      `Bundle not found: ${cleanNetwork} ${cleanBundle}`
+    );
+  }
+
+  const vendorId =
+    bundle.vendorPackageId || bundle.packageId;
+
+  if (!vendorId) {
+    throw new Error(
+      `No vendor package ID for ${cleanNetwork} ${cleanBundle}`
+    );
+  }
+
+  // 🔥 STRICT VALIDATION
+  if (
+    vendorId.includes("_basic") ||
+    vendorId.includes("_pro") ||
+    vendorId.length < 20
+  ) {
+    throw new Error(
+      `Invalid vendor package ID: ${vendorId}`
+    );
+  }
+
+  console.log("✅ REAL PACKAGE ID:", vendorId);
+
+  return vendorId;
+};
+
+*/
+
+import Bundle from "../models/Bundle.js";
+
+export const getPackageId = async (
+  network,
+  bundleName
+) => {
+  if (!network || !bundleName) {
+    throw new Error(
+      "Network or bundleName missing"
+    );
+  }
+
+  const cleanNetwork = network
+    .trim()
+    .toUpperCase();
+
+  const cleanBundle = bundleName
+    .replace(/\s+/g, "")
+    .trim()
+    .toUpperCase();
+
+  console.log(
+    `🔍 PACKAGE LOOKUP: ${cleanNetwork} ${cleanBundle}`
+  );
+
+  const bundle = await Bundle.findOne({
+    network: cleanNetwork,
+    name: cleanBundle
+  });
+
+  if (!bundle) {
+    throw new Error(
+      `Bundle not found: ${cleanNetwork} ${cleanBundle}`
+    );
+  }
+
+  const vendorId =
+    bundle.vendorPackageId ||
+    bundle.packageId;
+
+  if (!vendorId) {
+    throw new Error(
+      `No vendor package ID for ${cleanNetwork} ${cleanBundle}`
+    );
+  }
+
+  // reject fake IDs
+  if (
+    vendorId.includes("_basic") ||
+    vendorId.includes("_pro") ||
+    vendorId.length < 20
+  ) {
+    throw new Error(
+      `Invalid vendor package ID: ${vendorId}`
+    );
+  }
+
+  console.log(
+    `✅ REAL PACKAGE ID: ${vendorId}`
+  );
+
+  return vendorId;
+};
