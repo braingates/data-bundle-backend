@@ -24,7 +24,7 @@ const orderSchema = new mongoose.Schema(
     network: {
       type: String,
       required: true,
-      enum: ["MTN", "TELECEL", "Telecel", "AIRTELTIGO", "AirtelTigo"]
+      enum: ["MTN", "TELECEL", "AIRTELTIGO"]
     },
 
     bundle: {
@@ -49,45 +49,97 @@ const orderSchema = new mongoose.Schema(
     },
 
     // ==========================
-    // ORDER STATE
+    // ORDER STATE (FIXED)
     // ==========================
     orderStatus: {
       type: String,
-      enum: ["pending", "processing", "delivered", "failed"],
+      enum: [
+        "pending",
+        "processing",
+        "completed",
+        "failed",
+        "retrying",
+        "pending_vendor_balance"
+      ],
       default: "pending",
       index: true
     },
 
     // ==========================
-    // VENDOR STATE
+    // VENDOR STATE (FIXED)
     // ==========================
     vendorStatus: {
       type: String,
-      enum: ["pending", "processing", "completed", "failed"],
+      enum: [
+        "pending",
+        "processing",
+        "sent",
+        "success",
+        "queued",
+        "failed"
+      ],
       default: "pending",
       index: true
     },
 
     // ==========================
-    // DEBUG / RESPONSE STORAGE
+    // RETRY SYSTEM
+    // ==========================
+    retryCount: {
+      type: Number,
+      default: 0
+    },
+
+    maxRetries: {
+      type: Number,
+      default: 4
+    },
+
+    lastRetryAt: {
+      type: Date,
+      default: null
+    },
+
+    nextRetryAt: {
+      type: Date,
+      default: null,
+      index: true
+    },
+
+    processingStartedAt: {
+      type: Date,
+      default: null
+    },
+
+    completedAt: {
+      type: Date,
+      default: null
+    },
+
+    // ==========================
+    // DEBUG / VENDOR RESPONSE
     // ==========================
     vendorResponse: {
       type: Object,
       default: null
     }
   },
-  { timestamps: true }
+  {
+    timestamps: true
+  }
 );
 
 // ==========================
-// PERFORMANCE INDEXES
+// INDEXES (CRITICAL FOR SCALE)
 // ==========================
+orderSchema.index({
+  paymentStatus: 1,
+  vendorStatus: 1,
+  orderStatus: 1
+});
 
-orderSchema.index({ paymentStatus: 1, vendorStatus: 1, orderStatus: 1 });
-
-
-
-
+orderSchema.index({
+  nextRetryAt: 1
+});
 
 export default mongoose.model("Order", orderSchema);
-
