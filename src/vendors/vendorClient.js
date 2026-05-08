@@ -20,6 +20,7 @@ export const sendToVendor = async (order) => {
       case "TELECEL":
         result = await sendTelecel(order);
         break;
+        
 
       case "AIRTELTIGO":
         result = await sendAirtel(order);

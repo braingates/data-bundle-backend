@@ -91,7 +91,7 @@ export const fetchTelecelBundles = async () => {
       .map(pkg => ({
         network: pkg.network || "TELECEL",
         name: pkg.name || pkg.size,
-        vendorPackageId: pkg.id,
+        vendorPackageId: pkg.id || pkg.package_id,
         price: pkg.price
       }));
 
@@ -99,6 +99,6 @@ export const fetchTelecelBundles = async () => {
     console.log("❌ TELECEL SYNC ERROR:", err.message);
     return [];
   }
-};
+}; 
 
 

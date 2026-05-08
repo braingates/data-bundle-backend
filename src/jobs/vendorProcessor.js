@@ -31,7 +31,9 @@ cron.schedule("*/30 * * * * *", async () => {
             vendorStatus: "pending"
           },
           { vendorStatus: "processing" },
+          {orderStatus: "processing"},
           { new: true }
+          
         );
 
         if (!locked) continue;
