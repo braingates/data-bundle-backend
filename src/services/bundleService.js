@@ -1,4 +1,4 @@
-/*
+
 import Bundle from "../models/Bundle.js";
 
 const VENDOR_PACKAGE_FALLBACKS = {
@@ -91,7 +91,7 @@ export const getPackageId = async (network, bundleName) => {
   return bundle.packageId;
 };
 
-*/
+
 
 /*
 
@@ -148,40 +148,3 @@ export const getPackageId = async (network, bundleName) => {
 };
 
 */
-
-
-// src/services/bundleService.js
-import Bundle from "../models/Bundle.js";
-
-export const getPackageId = async (network, bundleName) => {
-  if (!network || !bundleName) {
-    throw new Error("Network or bundleName missing");
-  }
-
-  const cleanNetwork = network.trim().toUpperCase();
-  const cleanBundle = bundleName.trim().toUpperCase();
-
-  console.log(`🔍 Looking up: ${cleanNetwork} ${cleanBundle}`);
-
-  // ONLY check database - NO FALLBACKS
-  const bundle = await Bundle.findOne({
-    network: cleanNetwork,
-    name: cleanBundle
-  });
-
-  if (!bundle) {
-    console.error(`❌ No bundle found in database: ${cleanNetwork} ${cleanBundle}`);
-    throw new Error(`Bundle not found: ${cleanNetwork} ${cleanBundle}. Run bundle sync.`);
-  }
-
-  // Get the vendor's actual ID
-  const vendorId = bundle.vendorPackageId || bundle.packageId;
-
-  if (!vendorId) {
-    console.error(`❌ Bundle found but no package ID: ${cleanNetwork} ${cleanBundle}`);
-    throw new Error(`No package ID for ${cleanNetwork} ${cleanBundle}. Update database.`);
-  }
-
-  console.log(`✅ Using vendor ID: ${vendorId}`);
-  return vendorId;
-};

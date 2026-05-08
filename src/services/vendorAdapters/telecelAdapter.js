@@ -91,7 +91,7 @@ export const fetchTelecelBundles = async () => {
       .map(pkg => ({
         network: pkg.network || "TELECEL",
         name: pkg.name || pkg.size,
-        vendorPackageId: pkg.id || pkg.package_id,
+        vendorPackageId: pkg.id,
         price: pkg.price
       }));
 
