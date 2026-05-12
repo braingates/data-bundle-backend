@@ -6,7 +6,7 @@ export const initPayment = async (order) => {
     const response = await axios.post(
       "https://api.paystack.co/transaction/initialize",
       {
-        email: order.email || "customer@email.com",
+        email: "megabytestation@email.com" || order.email ,
         amount: Number(order.amount) * 100,
         reference: order.reference,
         callback_url: "https://megabytestation.vercel.app/?payment=success"
