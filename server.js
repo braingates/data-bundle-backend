@@ -61,7 +61,6 @@ const corsOptions = {
     "https://megabytestation.vercel.app",
     "http://localhost:5500",
     "http://127.0.0.1:5500",
-    "https://braingates.github.io/megabyte-admin",
     "https://megabyte-admin.vercel.app"
   ],
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
