@@ -1,34 +1,88 @@
 import express from "express";
-import * as adminController from "../controllers/adminController.js";
-import { verifyApiKey } from "../middleware/auth.js";
+import Order from "../models/Order.js";
+import { verifyApiKey } from "../middleware/auth.js"; // Assuming this middleware exists
 
 const router = express.Router();
 
-// Protect all admin routes with API key verification
-router.use(verifyApiKey);
-
-// Dashboard Statistics
-router.get("/dashboard/stats", adminController.getDashboardStats);
-router.get("/dashboard/live", adminController.getLiveDashboard);
-router.get("/dashboard/trends", adminController.getPerformanceTrends);
-router.get("/dashboard/vendor-metrics", adminController.getVendorMetrics);
-
-// Order Management
-router.get("/orders", adminController.getOrders);
-router.get("/orders/:reference", adminController.getOrderDetails);
-router.get("/orders/:reference/retries", adminController.getRetryAttempts);
-
-// Audit & Logging
-router.get("/audit-logs", adminController.getAuditLogs);
-
-// Vendor Health
-router.get("/vendors/health", async (req, res) => {
+// ==========================
+// ADMIN: GET ALL ORDERS (with filters and pagination)
+// ==========================
+router.get("/orders", verifyApiKey, async (req, res) => {
   try {
-    const { checkVendorHealth } = await import("../services/vendorGateway.js");
-    const health = await checkVendorHealth();
-    res.json(health);
+    const { page = 1, limit = 20, search, network, status } = req.query;
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+
+    const query = {};
+    if (search) {
+      query.$or = [
+        { reference: { $regex: search, $options: "i" } },
+        { phone: { $regex: search, $options: "i" } },
+      ];
+    }
+    if (network && network !== "all") {
+      query.network = network;
+    }
+    if (status && status !== "all") {
+      query.orderStatus = status;
+    }
+
+    const orders = await Order.find(query)
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(parseInt(limit));
+
+    const totalOrders = await Order.countDocuments(query);
+
+    res.json({
+      orders,
+      currentPage: parseInt(page),
+      totalPages: Math.ceil(totalOrders / parseInt(limit)),
+      totalOrders,
+    });
   } catch (err) {
-    res.status(500).json({ error: "Failed to fetch vendor health", code: "VENDOR_HEALTH_ERROR" });
+    console.error("ADMIN GET ORDERS ERROR:", err);
+    res.status(500).json({ error: "Server error fetching orders" });
+  }
+});
+
+// ==========================
+// ADMIN: GET STATS (including profit)
+// ==========================
+router.get("/stats", verifyApiKey, async (req, res) => {
+  try {
+    const totalOrders = await Order.countDocuments();
+    const successfulOrders = await Order.countDocuments({
+      $or: [{ vendorStatus: "success" }, { orderStatus: "completed" }],
+    });
+
+    const revenueResult = await Order.aggregate([
+      {
+        $match: {
+          $or: [{ vendorStatus: "success" }, { orderStatus: "completed" }],
+        },
+      },
+      {
+        $group: {
+          _id: null,
+          totalRevenue: { $sum: "$amount" },
+          totalCost: { $sum: "$vendorCost" }, // Sum vendorCost
+        },
+      },
+    ]);
+
+    const totalRevenue = revenueResult[0]?.totalRevenue || 0;
+    const totalCost = revenueResult[0]?.totalCost || 0;
+    const totalProfit = totalRevenue - totalCost; // Calculate profit
+
+    res.json({
+      total: totalOrders,
+      success: successfulOrders,
+      revenue: totalRevenue.toFixed(2),
+      profit: totalProfit.toFixed(2), // Add profit to stats
+    });
+  } catch (err) {
+    console.error("ADMIN GET STATS ERROR:", err);
+    res.status(500).json({ error: "Server error fetching stats" });
   }
 });
 
