@@ -2,9 +2,6 @@ import mongoose from "mongoose";
 
 const orderSchema = new mongoose.Schema(
   {
-    // ==========================
-    // IDENTIFIER
-    // ==========================
     reference: {
       type: String,
       required: true,
@@ -12,9 +9,12 @@ const orderSchema = new mongoose.Schema(
       index: true
     },
 
-    // ==========================
-    // CUSTOMER DATA
-    // ==========================
+    idempotencyKey: {
+      type: String,
+      unique: true,
+      sparse: true
+    },
+
     phone: {
       type: String,
       required: true,
@@ -32,15 +32,19 @@ const orderSchema = new mongoose.Schema(
       required: true
     },
 
+    packageId: String,
+
     amount: {
       type: Number,
       required: true,
       min: 0
     },
 
-    // ==========================
-    // PAYMENT STATE
-    // ==========================
+    vendorCost: {
+      type: Number,
+      default: 0
+    },
+
     paymentStatus: {
       type: String,
       enum: ["pending", "completed", "failed"],
@@ -48,9 +52,6 @@ const orderSchema = new mongoose.Schema(
       index: true
     },
 
-    // ==========================
-    // ORDER STATE (FIXED)
-    // ==========================
     orderStatus: {
       type: String,
       enum: [
@@ -65,9 +66,6 @@ const orderSchema = new mongoose.Schema(
       index: true
     },
 
-    // ==========================
-    // VENDOR STATE (FIXED)
-    // ==========================
     vendorStatus: {
       type: String,
       enum: [
@@ -82,9 +80,16 @@ const orderSchema = new mongoose.Schema(
       index: true
     },
 
-    // ==========================
-    // RETRY SYSTEM
-    // ==========================
+    vendorReference: {
+      type: String,
+      index: true
+    },
+
+    vendorResponse: {
+      type: Object,
+      default: null
+    },
+
     retryCount: {
       type: Number,
       default: 0
@@ -95,10 +100,7 @@ const orderSchema = new mongoose.Schema(
       default: 4
     },
 
-    lastRetryAt: {
-      type: Date,
-      default: null
-    },
+    lastRetryAt: Date,
 
     nextRetryAt: {
       type: Date,
@@ -106,22 +108,21 @@ const orderSchema = new mongoose.Schema(
       index: true
     },
 
-    processingStartedAt: {
+    processingStartedAt: Date,
+
+    completedAt: Date,
+
+    failureReason: String,
+
+    createdAt: {
       type: Date,
-      default: null
+      default: Date.now,
+      index: true
     },
 
-    completedAt: {
+    updatedAt: {
       type: Date,
-      default: null
-    },
-
-    // ==========================
-    // DEBUG / VENDOR RESPONSE
-    // ==========================
-    vendorResponse: {
-      type: Object,
-      default: null
+      default: Date.now
     }
   },
   {
@@ -129,17 +130,13 @@ const orderSchema = new mongoose.Schema(
   }
 );
 
-// ==========================
-// INDEXES (CRITICAL FOR SCALE)
-// ==========================
-orderSchema.index({
-  paymentStatus: 1,
-  vendorStatus: 1,
-  orderStatus: 1
-});
+orderSchema.index({ paymentStatus: 1, vendorStatus: 1, orderStatus: 1 });
+orderSchema.index({ nextRetryAt: 1 });
+orderSchema.index({ "phone": 1, "createdAt": -1 });
 
-orderSchema.index({
-  nextRetryAt: 1
+orderSchema.pre("save", function(next) {
+  this.updatedAt = Date.now();
+  next();
 });
 
 export default mongoose.model("Order", orderSchema);
