@@ -25,28 +25,63 @@ import logger from "./src/utils/logger.js";
 const app = express();
 const httpServer = createServer(app);
 
-// Socket.IO with restricted CORS
+const PORT = process.env.PORT || 5001;
+
+// ==========================================
+// ALLOWED ORIGINS
+// ==========================================
+
+const allowedOrigins = [
+  "https://megabyte-admin.vercel.app",
+  "https://megabytestation.vercel.app",
+  "http://localhost:5500",
+  "http://127.0.0.1:5500",
+  "http://localhost:3000"
+];
+
+// Add env origins safely
+if (process.env.ALLOWED_ORIGINS) {
+  const envOrigins = process.env.ALLOWED_ORIGINS
+    .split(",")
+    .map(origin => origin.trim())
+    .filter(Boolean);
+
+  allowedOrigins.push(...envOrigins);
+}
+
+// Remove duplicates
+const uniqueOrigins = [...new Set(allowedOrigins)];
+
+logger.info("✅ Allowed Origins Loaded", {
+  origins: uniqueOrigins
+});
+
+// ==========================================
+// SOCKET.IO
+// ==========================================
+
 const io = new Server(httpServer, {
   cors: {
-    origin: process.env.ALLOWED_ORIGINS?.split(",") || ["http://localhost:5500"],
+    origin: uniqueOrigins,
     methods: ["GET", "POST"],
     credentials: true
   },
-  transports: ["websocket"]
+  transports: ["websocket", "polling"]
 });
 
-const PORT = process.env.PORT || 5001;
+// ==========================================
+// SECURITY
+// ==========================================
 
-app.use(helmet({
-  contentSecurityPolicy: {
-    directives: {
-      defaultSrc: ["'self'"],
-      styleSrc: ["'self'", "'unsafe-inline'"],
-      scriptSrc: ["'self'"],
-      imgSrc: ["'self'", "data:", "https:"]
-    }
-  }
-}));
+app.use(
+  helmet({
+    crossOriginResourcePolicy: false
+  })
+);
+
+// ==========================================
+// RATE LIMITER
+// ==========================================
 
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -54,23 +89,63 @@ const limiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false
 });
+
 app.use("/api/", limiter);
 
+// ==========================================
+// CORS FIX
+// ==========================================
+
 const corsOptions = {
-  origin: process.env.ALLOWED_ORIGINS?.split(",") || [
-    "https://megabytestation.vercel.app",
-    "http://localhost:5500",
-    "http://127.0.0.1:5500",
-    "https://megabyte-admin.vercel.app"
+  origin: (origin, callback) => {
+    // Allow requests without origin
+    // Postman, mobile apps, curl, server-to-server
+    if (!origin) {
+      return callback(null, true);
+    }
+
+    if (uniqueOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+
+    logger.warn("❌ CORS Blocked", { origin });
+
+    return callback(new Error(`CORS blocked for origin: ${origin}`));
+  },
+
+  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+
+  allowedHeaders: [
+    "Content-Type",
+    "Authorization",
+    "X-Requested-With",
+    "Accept"
   ],
-  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-  credentials: true
+
+  credentials: true,
+
+  optionsSuccessStatus: 200
 };
 
+// Apply CORS BEFORE routes
 app.use(cors(corsOptions));
 
+// Explicit preflight handling
+app.options("*", cors(corsOptions));
+
+// ==========================================
+// BODY PARSERS
+// ==========================================
+
 app.use(express.json({ limit: "10mb" }));
-app.use(express.urlencoded({ extended: true, limit: "10mb" }));
+app.use(express.urlencoded({
+  extended: true,
+  limit: "10mb"
+}));
+
+// ==========================================
+// SOCKET INJECTION
+// ==========================================
 
 app.use((req, res, next) => {
   req.io = io;
@@ -79,104 +154,156 @@ app.use((req, res, next) => {
 
 app.set("io", io);
 
+// ==========================================
+// ROUTES
+// ==========================================
+
 app.use("/api/payments", paymentRoutes);
 app.use("/api/orders", trackingRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/bundles", bundleRoutes);
 app.use("/api/webhook", webhookRoutes);
 
-// Enhanced health check with database connectivity verification
+// ==========================================
+// HEALTH CHECK
+// ==========================================
+
 app.get("/health", async (req, res) => {
   const health = {
     status: "ok",
     timestamp: new Date().toISOString(),
     uptime: process.uptime(),
     mongodb: "unknown",
-    redis: "unknown"
+    redis: "connected"
   };
 
   try {
-    // Check MongoDB connection
-    if (mongoose.connection.readyState === 1) {
-      health.mongodb = "connected";
-    } else {
-      health.mongodb = "disconnected";
-    }
+    health.mongodb =
+      mongoose.connection.readyState === 1
+        ? "connected"
+        : "disconnected";
   } catch (err) {
     health.mongodb = "error";
   }
 
-  // Redis check is handled by connection in queue.js
-  // If queue is working, Redis is available
-  health.redis = "connected";
+  const statusCode =
+    health.mongodb === "connected"
+      ? 200
+      : 503;
 
-  const statusCode = health.mongodb === "connected" ? 200 : 503;
   res.status(statusCode).json(health);
 });
 
+// ==========================================
+// ROOT
+// ==========================================
+
 app.get("/", (req, res) => {
-  res.json({ name: "Data Bundle API", version: "2.0.0" });
+  res.json({
+    name: "Data Bundle API",
+    version: "2.0.0",
+    status: "running"
+  });
 });
 
-// Graceful error handling - must be set up BEFORE server starts
-process.on("uncaughtException", (err) => {
+// ==========================================
+// GLOBAL ERROR HANDLER
+// ==========================================
+
+app.use((err, req, res, next) => {
+  logger.error("❌ Express Error", {
+    message: err.message,
+    stack: err.stack,
+    path: req.originalUrl,
+    method: req.method
+  });
+
+  // Ensure CORS headers are always returned
+  const origin = req.headers.origin;
+
+  if (origin && uniqueOrigins.includes(origin)) {
+    res.header("Access-Control-Allow-Origin", origin);
+    res.header("Access-Control-Allow-Credentials", "true");
+  }
+
+  res.status(err.status || 500).json({
+    success: false,
+    error: err.message || "Internal Server Error"
+  });
+});
+
+// ==========================================
+// PROCESS ERROR HANDLERS
+// ==========================================
+
+process.on("uncaughtException", async (err) => {
   logger.error("FATAL: Uncaught Exception", {
     error: err.message,
     stack: err.stack,
     timestamp: new Date().toISOString()
   });
 
-  // Attempt to notify via Telegram
-  notificationService.sendTelegram(
-    `🔴 <b>CRITICAL: Uncaught Exception</b>\n<code>${err.message}</code>`
-  ).catch(() => {});
+  try {
+    await notificationService.sendTelegram(
+      `🔴 <b>CRITICAL: Uncaught Exception</b>\n<code>${err.message}</code>`
+    );
+  } catch {}
 
-  // Exit after logging (process manager like PM2 will restart)
   process.exit(1);
 });
 
-process.on("unhandledRejection", (reason, promise) => {
+process.on("unhandledRejection", async (reason) => {
   logger.error("FATAL: Unhandled Promise Rejection", {
-    reason: reason instanceof Error ? reason.message : String(reason),
-    stack: reason instanceof Error ? reason.stack : null,
+    reason: reason instanceof Error
+      ? reason.message
+      : String(reason),
+
+    stack: reason instanceof Error
+      ? reason.stack
+      : null,
+
     timestamp: new Date().toISOString()
   });
 
-  // Attempt to notify via Telegram
-  notificationService.sendTelegram(
-    `🔴 <b>CRITICAL: Unhandled Rejection</b>\n<code>${reason instanceof Error ? reason.message : String(reason)}</code>`
-  ).catch(() => {});
+  try {
+    await notificationService.sendTelegram(
+      `🔴 <b>CRITICAL: Unhandled Rejection</b>\n<code>${
+        reason instanceof Error
+          ? reason.message
+          : String(reason)
+      }</code>`
+    );
+  } catch {}
 
-  // Exit after logging
   process.exit(1);
 });
 
-// Graceful shutdown handler
+// ==========================================
+// GRACEFUL SHUTDOWN
+// ==========================================
+
 const gracefulShutdown = async (signal) => {
-  logger.info(`${signal} received, gracefully shutting down...`);
+  logger.info(`${signal} received, shutting down gracefully...`);
 
   try {
-    // Stop accepting new connections
     httpServer.close(() => {
       logger.info("HTTP server closed");
     });
 
-    // Close database connection
     await mongoose.connection.close();
+
     logger.info("MongoDB connection closed");
 
-    // Give processes time to finish (10 second timeout)
-    const shutdownTimeout = setTimeout(() => {
-      logger.error("Forced shutdown after 10s timeout");
+    setTimeout(() => {
+      logger.error("Forced shutdown after timeout");
       process.exit(1);
     }, 10000);
 
-    // Clear timeout if everything closes cleanly
-    process.on("exit", () => {
-      clearTimeout(shutdownTimeout);
-    });
   } catch (err) {
-    logger.error("Error during graceful shutdown", { error: err.message });
+    logger.error("Shutdown error", {
+      error: err.message
+    });
+
     process.exit(1);
   }
 };
@@ -184,41 +311,64 @@ const gracefulShutdown = async (signal) => {
 process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
 process.on("SIGINT", () => gracefulShutdown("SIGINT"));
 
+// ==========================================
+// SERVER STARTUP
+// ==========================================
+
 (async () => {
   try {
     await connectDB();
+
     logger.info("✅ Database connected");
 
     await import("./src/jobs/vendorProcessor.js");
     await import("./src/jobs/bundleSyncJob.js");
 
     startWorker();
+
     logger.info("✅ Worker started");
 
     syncEngine.init(io);
-    setInterval(() => syncEngine.run(), 60 * 1000);
+
+    setInterval(() => {
+      syncEngine.run();
+    }, 60 * 1000);
 
     httpServer.listen(PORT, () => {
       logger.info(`🚀 Server running on port ${PORT}`);
     });
+
   } catch (err) {
     logger.error("❌ Server startup failed", {
       error: err.message,
       stack: err.stack
     });
+
     process.exit(1);
   }
 })();
 
+// ==========================================
+// SOCKET EVENTS
+// ==========================================
+
 io.on("connection", (socket) => {
-  logger.info("🔌 Client connected", { socketId: socket.id });
+  logger.info("🔌 Client connected", {
+    socketId: socket.id
+  });
 
   socket.on("subscribe", (orderId) => {
     socket.join(`order-${orderId}`);
-    logger.debug("Client subscribed to order", { socketId: socket.id, orderId });
+
+    logger.debug("Client subscribed", {
+      socketId: socket.id,
+      orderId
+    });
   });
 
   socket.on("disconnect", () => {
-    logger.info("🔌 Client disconnected", { socketId: socket.id });
+    logger.info("🔌 Client disconnected", {
+      socketId: socket.id
+    });
   });
 });
