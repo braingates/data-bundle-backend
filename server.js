@@ -96,10 +96,13 @@ app.use("/api/", limiter);
 // CORS FIX
 // ==========================================
 
+// ==========================================
+// CORS FIX
+// ==========================================
+
 const corsOptions = {
   origin: (origin, callback) => {
-    // Allow requests without origin
-    // Postman, mobile apps, curl, server-to-server
+
     if (!origin) {
       return callback(null, true);
     }
@@ -110,16 +113,26 @@ const corsOptions = {
 
     logger.warn("❌ CORS Blocked", { origin });
 
-    return callback(new Error(`CORS blocked for origin: ${origin}`));
+    return callback(
+      new Error(`CORS blocked for origin: ${origin}`)
+    );
   },
 
-  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+  methods: [
+    "GET",
+    "POST",
+    "PUT",
+    "PATCH",
+    "DELETE",
+    "OPTIONS"
+  ],
 
   allowedHeaders: [
     "Content-Type",
     "Authorization",
     "X-Requested-With",
-    "Accept"
+    "Accept",
+    "x-api-key"
   ],
 
   credentials: true,
@@ -127,11 +140,43 @@ const corsOptions = {
   optionsSuccessStatus: 200
 };
 
+app.use(cors(corsOptions));
+
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+
+  if (origin && uniqueOrigins.includes(origin)) {
+    res.header("Access-Control-Allow-Origin", origin);
+  }
+
+  res.header(
+    "Access-Control-Allow-Headers",
+    "Origin, X-Requested-With, Content-Type, Accept, Authorization, x-api-key"
+  );
+
+  res.header(
+    "Access-Control-Allow-Methods",
+    "GET, POST, PUT, PATCH, DELETE, OPTIONS"
+  );
+
+  res.header(
+    "Access-Control-Allow-Credentials",
+    "true"
+  );
+
+  if (req.method === "OPTIONS") {
+    return res.sendStatus(200);
+  }
+
+  next();
+});
+
+app.options("*", cors(corsOptions));
+
 // Apply CORS BEFORE routes
 app.use(cors(corsOptions));
 
-// Explicit preflight handling
-app.options("*", cors(corsOptions));
+
 
 // ==========================================
 // BODY PARSERS
