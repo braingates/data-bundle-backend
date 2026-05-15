@@ -61,7 +61,7 @@ git remote add origin https://github.com/braingates/mega-data.git
 git push -u origin main
 
 
-
+npm install bullmq ioredis
 
 backend/
 │

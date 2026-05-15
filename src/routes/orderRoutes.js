@@ -1,9 +1,12 @@
 // orderRoutes.js
 import express from "express";
 import Order from "../models/Order.js";
-import { verifyApiKey } from "../middleware/auth.js";
+    import { getOrders } from "../controllers/orderController.js"; // Import the moved getOrders
 
 const router = express.Router();
+
+    // Public route for general order search (customer-facing)
+    router.get("/", getOrders);
 
 // ==========================
 // GET ORDERS BY PHONE (RECENT)

@@ -124,9 +124,8 @@ export const startWorker = () => {
   return worker;
 };
 
-function calculateNextRetry(retryCount) {
-  const delays = [2 * 60 * 1000, 5 * 60 * 1000, 15 * 60 * 1000, 30 * 60 * 1000];
-  const delay = delays[retryCount] || delays[delays.length - 1];
+function calculateNextRetry() {
+  const delay = 5 * 60 * 1000; // Fixed 5-minute delay for 20m total window
   return new Date(Date.now() + delay);
 }
 

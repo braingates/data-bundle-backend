@@ -27,8 +27,8 @@ export const retryService = {
   },
 
   scheduleNextRetry: (order) => {
-    const delays = [2 * 60 * 1000, 5 * 60 * 1000, 15 * 60 * 1000, 30 * 60 * 1000];
-    const delay = delays[order.retryCount] || delays[delays.length - 1];
+    // Fixed 5-minute delay to ensure 4 retries fit within 20 minutes
+    const delay = 5 * 60 * 1000; 
     return scheduleRetry(order._id, delay);
   }
 };
@@ -72,14 +72,12 @@ async function processRetry(order) {
 }
 
 function getNextRetryDate(retryCount) {
-  const delays = [2, 5, 15, 30];
-  const minutes = delays[retryCount - 1] || 30;
-  return new Date(Date.now() + minutes * 60 * 1000);
+  // Consistency check: Fixed 5 minute interval
+  return new Date(Date.now() + 5 * 60 * 1000);
 }
 
 function getNextDelay(retryCount) {
-  const delays = [2 * 60 * 1000, 5 * 60 * 1000, 15 * 60 * 1000];
-  return delays[retryCount - 1] || delays[delays.length - 1];
+  return 5 * 60 * 1000;
 }
 
 export default retryService;

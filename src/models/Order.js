@@ -6,13 +6,21 @@ const orderSchema = new mongoose.Schema(
       type: String,
       required: true,
       unique: true,
+      sparse: true,
+      index: true
+    },
+    shortTrackingId: {
+      type: String,
+      required: true,
+      unique: true,
+      sparse: true,
       index: true
     },
 
     idempotencyKey: {
       type: String,
-      unique: true,
-      sparse: true
+      sparse: true,
+      index: true
     },
 
     phone: {
@@ -24,7 +32,8 @@ const orderSchema = new mongoose.Schema(
     network: {
       type: String,
       required: true,
-      enum: ["MTN", "TELECEL", "AIRTELTIGO"]
+      enum: ["MTN", "TELECEL", "AIRTELTIGO"],
+      index: true
     },
 
     bundle: {
@@ -92,7 +101,8 @@ const orderSchema = new mongoose.Schema(
 
     retryCount: {
       type: Number,
-      default: 0
+      default: 0,
+      index: true
     },
 
     maxRetries: {
@@ -118,11 +128,6 @@ const orderSchema = new mongoose.Schema(
       type: Date,
       default: Date.now,
       index: true
-    },
-
-    updatedAt: {
-      type: Date,
-      default: Date.now
     }
   },
   {
@@ -130,12 +135,31 @@ const orderSchema = new mongoose.Schema(
   }
 );
 
+// ✅ CRITICAL FIX: Add compound indexes for common queries
 orderSchema.index({ paymentStatus: 1, vendorStatus: 1, orderStatus: 1 });
-orderSchema.index({ nextRetryAt: 1 });
-orderSchema.index({ "phone": 1, "createdAt": -1 });
+orderSchema.index({ nextRetryAt: 1, retryCount: 1 });
+orderSchema.index({ phone: 1, createdAt: -1 });
+orderSchema.index({ phone: 1, network: 1 });
+orderSchema.index({ paymentStatus: 1, createdAt: -1 });
+orderSchema.index({ vendorStatus: 1, createdAt: -1 });
 
+// ✅ CRITICAL FIX: Add TTL index to automatically delete old failed orders after 90 days
+orderSchema.index(
+  { createdAt: 1 },
+  {
+    expireAfterSeconds: 7776000, // 90 days in seconds
+    partialFilterExpression: {
+      $or: [
+        { orderStatus: "failed" },
+        { paymentStatus: "failed" }
+      ]
+    }
+  }
+);
+
+// ✅ FIX: Remove duplicate updatedAt logic (timestamps: true handles this)
 orderSchema.pre("save", function(next) {
-  this.updatedAt = Date.now();
+  // timestamps: true automatically sets updatedAt, no need to do it here
   next();
 });
 

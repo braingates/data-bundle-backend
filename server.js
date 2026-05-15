@@ -1,8 +1,36 @@
 import dotenv from "dotenv";
-dotenv.config();
+import path from "path";
+import { fileURLToPath } from "url";
+import { existsSync } from "fs";
+
+// Ensure environment variables are loaded at the very beginning
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+// Determine the environment file to load based on NODE_ENV or default to development
+const currentEnv = process.env.NODE_ENV || "development";
+
+const envFilesToLoad = [
+  path.join(__dirname, `.env.${currentEnv}`), // e.g., .env.development or .env.production
+  path.join(__dirname, ".env"), // Fallback generic .env
+];
+
+let envLoaded = false;
+for (const file of envFilesToLoad) {
+  if (existsSync(file)) {
+    dotenv.config({ path: file });
+    envLoaded = true;
+    console.log(`✅ Loaded environment from: ${file}`);
+    break; // Load the first found and stop
+  }
+}
+
+if (!envLoaded) {
+  console.warn("⚠️  No .env file loaded by server.js. Ensure .env.development or .env exists.");
+}
 
 import express from "express";
 import cors from "cors";
+import cookieParser from "cookie-parser";
 import helmet from "helmet";
 import rateLimit from "express-rate-limit";
 import { createServer } from "http";
@@ -17,8 +45,9 @@ import adminRoutes from "./src/routes/adminRoutes.js";
 import bundleRoutes from "./src/routes/bundleRoutes.js";
 import webhookRoutes from "./src/routes/webhookRoutes.js";
 
-import { startWorker } from "./src/services/queue.js";
+import { startWorker } from "./src/services/worker.js";
 import syncEngine from "./src/services/syncEngine.js";
+import reconciliationService from "./src/services/reconciliationService.js";
 import notificationService from "./src/services/notificationService.js";
 import logger from "./src/utils/logger.js";
 
@@ -80,7 +109,51 @@ app.use(
 );
 
 // ==========================================
-// RATE LIMITER
+// CORS FIX
+// ==========================================
+
+const corsOptions = {
+  origin: (origin, callback) => {
+    // Allow requests without origin
+    // Postman, mobile apps, curl, server-to-server
+    if (!origin) {
+      return callback(null, true);
+    }
+
+    if (uniqueOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+
+    logger.warn("❌ CORS Blocked", { origin });
+
+    return callback(new Error(`CORS blocked for origin: ${origin}`));
+  },
+
+  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+
+  allowedHeaders: [
+    "Content-Type",
+    "Authorization",
+    "X-Requested-With",
+    "Accept",
+    "x-api-key"
+  ],
+
+  credentials: true,
+
+  optionsSuccessStatus: 200,
+  
+  maxAge: 86400
+};
+
+// Apply CORS BEFORE routes
+app.use(cors(corsOptions));
+
+// Explicit preflight handling
+app.options("*", cors(corsOptions));
+
+// ==========================================
+// RATE LIMITER (Must be after CORS)
 // ==========================================
 
 const limiter = rateLimit({
@@ -93,95 +166,32 @@ const limiter = rateLimit({
 app.use("/api/", limiter);
 
 // ==========================================
-// CORS FIX
+// REQUEST TIMEOUT MIDDLEWARE
 // ==========================================
 
-// ==========================================
-// CORS FIX
-// ==========================================
-
-const corsOptions = {
-  origin: (origin, callback) => {
-
-    if (!origin) {
-      return callback(null, true);
-    }
-
-    if (uniqueOrigins.includes(origin)) {
-      return callback(null, true);
-    }
-
-    logger.warn("❌ CORS Blocked", { origin });
-
-    return callback(
-      new Error(`CORS blocked for origin: ${origin}`)
-    );
-  },
-
-  methods: [
-    "GET",
-    "POST",
-    "PUT",
-    "PATCH",
-    "DELETE",
-    "OPTIONS"
-  ],
-
-  allowedHeaders: [
-    "Content-Type",
-    "Authorization",
-    "X-Requested-With",
-    "Accept",
-    "x-api-key"
-  ],
-
-  credentials: true,
-
-  optionsSuccessStatus: 200
-};
-
-app.use(cors(corsOptions));
-
+// ✅ HIGH FIX: Add global request timeout to prevent hanging requests
 app.use((req, res, next) => {
-  const origin = req.headers.origin;
-
-  if (origin && uniqueOrigins.includes(origin)) {
-    res.header("Access-Control-Allow-Origin", origin);
-  }
-
-  res.header(
-    "Access-Control-Allow-Headers",
-    "Origin, X-Requested-With, Content-Type, Accept, Authorization, x-api-key"
-  );
-
-  res.header(
-    "Access-Control-Allow-Methods",
-    "GET, POST, PUT, PATCH, DELETE, OPTIONS"
-  );
-
-  res.header(
-    "Access-Control-Allow-Credentials",
-    "true"
-  );
-
-  if (req.method === "OPTIONS") {
-    return res.sendStatus(200);
-  }
-
+  // Set a 30-second timeout for all requests
+  req.setTimeout(30000);
+  res.setTimeout(30000);
+  
+  req.on("timeout", () => {
+    logger.error("Request timeout", {
+      method: req.method,
+      path: req.originalUrl,
+      ip: req.ip
+    });
+    res.status(503).json({ error: "Request timeout" });
+  });
+  
   next();
 });
-
-app.options("*", cors(corsOptions));
-
-// Apply CORS BEFORE routes
-app.use(cors(corsOptions));
-
-
 
 // ==========================================
 // BODY PARSERS
 // ==========================================
 
+app.use(cookieParser());
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({
   extended: true,
@@ -379,6 +389,11 @@ process.on("SIGINT", () => gracefulShutdown("SIGINT"));
       syncEngine.run();
     }, 60 * 1000);
 
+    // Run payment reconciliation every 5 minutes
+    setInterval(() => {
+      reconciliationService.run();
+    }, 5 * 60 * 1000);
+
     httpServer.listen(PORT, () => {
       logger.info(`🚀 Server running on port ${PORT}`);
     });
@@ -402,12 +417,19 @@ io.on("connection", (socket) => {
     socketId: socket.id
   });
 
-  socket.on("subscribe", (orderId) => {
-    socket.join(`order-${orderId}`);
+  socket.on("subscribe", (query) => {
+    socket.join(`tracker-${query}`);
 
     logger.debug("Client subscribed", {
       socketId: socket.id,
-      orderId
+      query
+    });
+  });
+
+  socket.on("subscribeAdmin", () => {
+    socket.join("admin");
+    logger.info("👨‍💻 Admin subscribed to real-time updates", {
+      socketId: socket.id
     });
   });
 

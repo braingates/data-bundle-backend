@@ -4,10 +4,15 @@ window.addEventListener("load", () => {
 
   if (!reference) return;
 
+  // Fallback to localhost if developing locally to prevent connection errors
+  const API_BASE = (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1")
+    ? `http://${window.location.hostname}:5001/api`
+    : "https://data-bundle-backend.onrender.com/api";
+
   // Clean URL
   window.history.replaceState({}, "", window.location.pathname);
 
-  fetch(`https://data-bundle-backend.onrender.com/api/payments/verify/${reference}`)
+  fetch(`${API_BASE}/payments/verify/${reference}`)
     .then(res => res.json())
     .then(data => {
       if (data.success) {
@@ -21,14 +26,14 @@ window.addEventListener("load", () => {
       }
 
       // Redirect ALWAYS after verification
-      window.location.href = "/megabyte.html";
+      window.location.href = "index.html";
     })
     .catch(err => {
       console.error("Verification error:", err);
 
       sessionStorage.setItem("orderStatus", "failed");
       sessionStorage.setItem("orderMessage", "Something went wrong ❌");
-
-      window.location.href = "https://megabytestation.vercel.app/";
+      
+      window.location.href = "index.html";
     });
 });

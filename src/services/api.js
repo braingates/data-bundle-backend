@@ -1,6 +1,9 @@
 import axios from "axios";
 
-const API_BASE = process.env.API_BASE || "https://data-bundle-backend.onrender.com/api";
+// Environment-aware base URL for Axios service
+const API_BASE = typeof window !== 'undefined' && (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1")
+  ? "http://localhost:5001/api"
+  : (process.env.API_BASE || "https://data-bundle-backend.onrender.com/api");
 
 export async function createPayment(data) {
   try {

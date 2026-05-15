@@ -4,9 +4,58 @@
  */
 
 import Order from "../models/Order.js";
+import crypto from "crypto";
 import AuditLog, { auditLogger } from "../models/AuditLog.js";
-import { checkVendorHealth } from "../services/vendorGateway.js";
+import { checkVendorHealth as getVendorHealthStatus } from "../services/vendorGateway.js";
 import logger from "../utils/logger.js";
+import { generateToken } from "../middleware/auth.js";
+
+/**
+ * Admin Login - Exchanges API Key for a Secure HttpOnly Cookie
+ */
+export const login = async (req, res) => {
+  try {
+    const { password } = req.body;
+    const expectedKey = (process.env.API_KEY || "").trim();
+
+    if (!password) {
+      return res.status(401).json({ error: "Password is required" });
+    }
+
+    // Use timing-safe comparison by hashing both values to a fixed length
+    const inputHash = crypto.createHash('sha256').update(password).digest();
+    const expectedHash = crypto.createHash('sha256').update(expectedKey).digest();
+
+    if (inputHash.length !== expectedHash.length || !crypto.timingSafeEqual(inputHash, expectedHash)) {
+      logger.warn("Admin login attempt failed: Invalid credentials", { ip: req.ip });
+      return res.status(401).json({ error: "Invalid credentials" });
+    }
+
+    const token = generateToken({ role: "admin", timestamp: Date.now() });
+
+    const isProd = process.env.NODE_ENV === "production";
+    const isLocal = req.hostname === "localhost" || req.hostname === "127.0.0.1";
+
+    // Set the JWT in a secure, HttpOnly cookie
+    res.cookie("admin_token", token, {
+      httpOnly: true, // Prevents JS access (XSS protection)
+      secure: isProd && !isLocal, // Only secure in prod and not on localhost
+      sameSite: "lax", // Allows cookie to be sent on cross-port localhost requests
+      maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
+    });
+
+    auditLogger.log({
+      action: "admin_login",
+      entity: "Admin",
+      metadata: { ip: req.ip }
+    });
+
+    return res.json({ success: true, message: "Logged in successfully" });
+  } catch (err) {
+    logger.error("Login error", { error: err.message });
+    return res.status(500).json({ error: "Authentication failed" });
+  }
+};
 
 /**
  * Get comprehensive dashboard statistics
@@ -73,7 +122,7 @@ export const getDashboardStats = async (req, res) => {
     const retries = retryStats[0] || { avgRetries: 0, maxRetries: 0, ordersWithRetries: 0 };
 
     // Vendor health
-    const vendorHealth = await checkVendorHealth();
+    const vendorHealth = await getVendorHealthStatus();
 
     // Last 24 hours performance
     const last24Hours = new Date(Date.now() - 24 * 60 * 60 * 1000);
@@ -115,6 +164,19 @@ export const getDashboardStats = async (req, res) => {
 };
 
 /**
+ * Controller to handle vendor health check requests
+ */
+export const checkVendorHealth = async (req, res) => {
+  try {
+    const health = await getVendorHealthStatus();
+    return res.json(health);
+  } catch (err) {
+    logger.error("Vendor health check controller error", { error: err.message });
+    return res.status(500).json({ error: "Failed to fetch vendor health status" });
+  }
+};
+
+/**
  * Get live dashboard data (for real-time updates)
  */
 export const getLiveDashboard = async (req, res) => {
@@ -125,7 +187,7 @@ export const getLiveDashboard = async (req, res) => {
     const recentOrders = await Order.find()
       .sort({ createdAt: -1 })
       .limit(Number(limit))
-      .select("reference network phone orderStatus paymentStatus vendorStatus amount createdAt");
+      .select("reference shortTrackingId network phone orderStatus paymentStatus vendorStatus amount createdAt vendorReference");
 
     // Active orders (currently processing)
     const activeOrders = await Order.find({
@@ -187,63 +249,6 @@ export const getOrderDetails = async (req, res) => {
   } catch (err) {
     logger.error("Order details error", { error: err.message });
     return res.status(500).json({ error: "Failed to fetch order details" });
-  }
-};
-
-/**
- * Get multiple orders with pagination and filtering
- */
-export const getOrders = async (req, res) => {
-  try {
-    const {
-      page = 1,
-      limit = 50,
-      network = "",
-      status = "",
-      search = ""
-    } = req.query;
-
-    const query = {};
-
-    // Filter by network if provided
-    if (network && network !== "all" && network !== "") {
-      query.network = network.toUpperCase();
-    }
-
-    // Filter by status if provided
-    if (status && status !== "all" && status !== "") {
-      query.orderStatus = status;
-    }
-
-    // Search by reference or phone if provided
-    if (search && search !== "") {
-      // Escape regex special characters to prevent ReDoS attacks
-      const sanitizedSearch = search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      
-      query.$or = [
-        { reference: { $regex: sanitizedSearch, $options: "i" } },
-        { phone: { $regex: sanitizedSearch, $options: "i" } }
-      ];
-    }
-
-    const skip = (Number(page) - 1) * Number(limit);
-    const orders = await Order.find(query)
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(Number(limit))
-      .select("reference network phone bundle amount paymentStatus vendorStatus orderStatus retryCount createdAt");
-
-    const total = await Order.countDocuments(query);
-
-    return res.json({
-      orders,
-      total,
-      page: Number(page),
-      pages: Math.ceil(total / Number(limit))
-    });
-  } catch (err) {
-    logger.error("Orders list error", { error: err.message });
-    return res.status(500).json({ error: "Failed to fetch orders" });
   }
 };
 
@@ -364,8 +369,8 @@ export const getPerformanceTrends = async (req, res) => {
         completedOrders: trend?.completedOrders || 0,
         failedOrders: trend?.failedOrders || 0,
         successRate: trend?.totalOrders ? ((trend.completedOrders / trend.totalOrders) * 100).toFixed(2) : 0,
-        revenue: trend?.revenue.toFixed(2) || "0.00",
-        avgRetries: trend?.avgRetries.toFixed(2) || "0.00"
+        revenue: (trend?.revenue || 0).toFixed(2),
+        avgRetries: (trend?.avgRetries || 0).toFixed(2)
       });
     }
 
@@ -414,7 +419,7 @@ export const getVendorMetrics = async (req, res) => {
       }
     ]);
 
-    const health = await checkVendorHealth();
+    const health = await getVendorHealthStatus();
 
     return res.json({
       metrics: vendorMetrics,
@@ -428,6 +433,7 @@ export const getVendorMetrics = async (req, res) => {
 };
 
 export default {
+  checkVendorHealth,
   getDashboardStats,
   getLiveDashboard,
   getOrderDetails,

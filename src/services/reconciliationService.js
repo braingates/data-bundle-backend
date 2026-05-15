@@ -8,9 +8,9 @@ export const reconciliationService = {
       logger.info("Starting reconciliation cycle");
 
       const stuckOrders = await Order.find({
-        paymentStatus: "completed",
-        vendorStatus: "pending",
+        paymentStatus: "pending",
         orderStatus: "pending",
+        retryCount: { $lt: 4 },
         createdAt: { $lte: new Date(Date.now() - 5 * 60 * 1000) }
       }).limit(50);
 
@@ -20,12 +20,23 @@ export const reconciliationService = {
       for (const order of stuckOrders) {
         const paystackStatus = await verifyPaystackPayment(order.reference);
 
-        if (paystackStatus.paid && !paystackStatus.found) {
+        if (paystackStatus.paid) {
           await Order.findByIdAndUpdate(order._id, {
-            orderStatus: "paid",
-            vendorStatus: "processing"
+            paymentStatus: "completed",
+            orderStatus: "queued"
           });
           recovered++;
+        } else if (order.retryCount >= 3) {
+          // Mark as failed if it hasn't been paid after 4 checks (approx 20 mins)
+          await Order.findByIdAndUpdate(order._id, {
+            paymentStatus: "failed",
+            orderStatus: "failed",
+            failureReason: "Payment verification timeout"
+          });
+        } else {
+          await Order.findByIdAndUpdate(order._id, {
+            $inc: { retryCount: 1 }
+          });
         }
       }
 

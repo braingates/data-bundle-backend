@@ -5,18 +5,18 @@
 
 export const NETWORK_PATTERNS = {
   MTN: {
-    prefixes: ['024', '054', '055'],
-    regex: /^(024|054|055)\d{7}$/,
+    prefixes: ['024', '054', '055', '025', '059', '053'],
+    regex: /^(024|054|055|025|059|053)\d{7}$/,
     name: 'MTN'
   },
   TELECEL: {
-    prefixes: ['027', '057'],
-    regex: /^(027|057)\d{7}$/,
+    prefixes: ['020', '050'],
+    regex: /^(020|050)\d{7}$/,
     name: 'Telecel'
   },
   AIRTELTIGO: {
-    prefixes: ['026', '056'],
-    regex: /^(026|056)\d{7}$/,
+    prefixes: ['026', '056', '027', '057'],
+    regex: /^(026|056|027|057)\d{7}$/,
     name: 'AirtelTigo'
   }
 };
@@ -122,7 +122,7 @@ export const validatePhoneNetwork = (phone, expectedNetwork) => {
     };
   }
 
-  return { valid: true, error: null };
+  return { valid: true, normalized: validation.normalized, network: validation.network, error: null };
 };
 
 /**

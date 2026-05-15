@@ -6,7 +6,7 @@ dotenv.config();
 
 const run = async () => {
   try {
-    await mongoose.connect(process.env.MONGO_URI, { useNewUrlParser: true, useUnifiedTopology: true });
+     await mongoose.connect(process.env.MONGO_URI);
     const bundle = await Bundle.findOne({ network: 'MTN', name: '1GB' }).lean();
     console.log(JSON.stringify(bundle, null, 2));
     await mongoose.disconnect();

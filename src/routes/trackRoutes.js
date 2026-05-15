@@ -1,9 +1,12 @@
 import express from "express";
 import Order from "../models/Order.js";
-import { verifyApiKey } from "../middleware/auth.js";
 import { syncOrderStatus } from "../services/syncEngine.js";
+import { getOrders } from "../controllers/orderController.js";
 
 const router = express.Router();
+
+// Public route for general order search (customer-facing)
+router.get("/", getOrders);
 
 router.post("/track-order", async (req, res) => {
   try {
@@ -28,11 +31,13 @@ router.post("/track-order", async (req, res) => {
 
     return res.json({
       reference: order.reference,
+      shortTrackingId: order.shortTrackingId,
       phone: order.phone,
       network: order.network,
       bundle: order.bundle,
       amount: order.amount,
       paymentStatus: order.paymentStatus,
+      vendorReference: order.vendorReference,
       vendorStatus: order.vendorStatus,
       orderStatus: order.orderStatus,
       createdAt: order.createdAt
@@ -40,33 +45,6 @@ router.post("/track-order", async (req, res) => {
   } catch (err) {
     console.error("TRACK ERROR:", err);
     return res.status(500).json({ error: "Server error while tracking order" });
-  }
-});
-
-router.get("/recent/:phone", async (req, res) => {
-  try {
-    const { phone } = req.params;
-    let orders = await Order.find({ phone })
-      .sort({ createdAt: -1 })
-      .limit(10)
-      .select("reference phone network bundle amount paymentStatus vendorStatus orderStatus retryCount createdAt");
-
-    const activeOrders = orders.filter(o => 
-      ["processing", "sent", "pending"].includes(o.orderStatus)
-    );
-
-    if (activeOrders.length > 0) {
-      await Promise.all(activeOrders.map(o => syncOrderStatus(o).catch(() => {})));
-      orders = await Order.find({ phone })
-        .sort({ createdAt: -1 })
-        .limit(10)
-        .select("reference phone network bundle amount paymentStatus vendorStatus orderStatus retryCount createdAt");
-    }
-
-    res.json(orders);
-  } catch (err) {
-    console.error("RECENT ORDERS ERROR:", err);
-    res.status(500).json({ error: "Server error" });
   }
 });
 
