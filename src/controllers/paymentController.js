@@ -3,6 +3,7 @@ import { initPayment } from "../services/paymentService.js";
 import crypto from "crypto";
 import axios from "axios";
 import logger from "../utils/logger.js";
+import Bundle from "../models/Bundle.js"; // Import Bundle model
 import { validatePhoneNetwork } from "../utils/phoneValidator.js";
 import { fetchInitialReference } from "../services/vendorGateway.js";
 

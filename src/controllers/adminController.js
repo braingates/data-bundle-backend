@@ -64,17 +64,22 @@ export const getDashboardStats = async (req, res) => {
   try {
     // Overall stats
     const total = await Order.countDocuments();
-    const completed = await Order.countDocuments({ orderStatus: "completed", paymentStatus: "completed" });
+    
+    // Check for both 'completed' and 'success' to ensure no orders are missed due to naming inconsistencies
+    const completed = await Order.countDocuments({ 
+      orderStatus: { $in: ["completed", "success", "delivered"] }, 
+      paymentStatus: { $in: ["completed", "success"] } 
+    });
+
     const failed = await Order.countDocuments({ orderStatus: "failed", paymentStatus: "failed" });
-    const pending = await Order.countDocuments({ paymentStatus: "pending" });
+    const pending = await Order.countDocuments({ paymentStatus: { $in: ["pending", "queued"] } });
     const processing = await Order.countDocuments({ orderStatus: "processing" });
 
     // Revenue calculations
     const financialStats = await Order.aggregate([
       {
         $match: {
-          paymentStatus: "completed",
-          orderStatus: "completed"
+          paymentStatus: { $in: ["completed", "success"] }
         }
       },
       {
@@ -93,7 +98,7 @@ export const getDashboardStats = async (req, res) => {
     // Network breakdown
     const networkStats = await Order.aggregate([
       {
-        $match: { orderStatus: "completed", paymentStatus: "completed" }
+        $match: { paymentStatus: { $in: ["completed", "success"] } }
       },
       {
         $group: {
@@ -128,7 +133,7 @@ export const getDashboardStats = async (req, res) => {
     const last24Hours = new Date(Date.now() - 24 * 60 * 60 * 1000);
     const last24HourStats = await Order.countDocuments({
       createdAt: { $gte: last24Hours },
-      paymentStatus: "completed"
+      paymentStatus: { $in: ["completed", "success"] }
     });
 
     return res.json({

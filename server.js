@@ -1,32 +1,8 @@
 import dotenv from "dotenv";
-import path from "path";
-import { fileURLToPath } from "url";
-import { existsSync } from "fs";
 
-// Ensure environment variables are loaded at the very beginning
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-
-// Determine the environment file to load based on NODE_ENV or default to development
-const currentEnv = process.env.NODE_ENV || "development";
-
-const envFilesToLoad = [
-  path.join(__dirname, `.env.${currentEnv}`), // e.g., .env.development or .env.production
-  path.join(__dirname, ".env"), // Fallback generic .env
-];
-
-let envLoaded = false;
-for (const file of envFilesToLoad) {
-  if (existsSync(file)) {
-    dotenv.config({ path: file });
-    envLoaded = true;
-    console.log(`✅ Loaded environment from: ${file}`);
-    break; // Load the first found and stop
-  }
-}
-
-if (!envLoaded) {
-  console.warn("⚠️  No .env file loaded by server.js. Ensure .env.development or .env exists.");
-}
+// Load environment variables from a single .env file
+dotenv.config();
+console.log("✅ Environment variables loaded from .env");
 
 import express from "express";
 import cors from "cors";

@@ -83,7 +83,8 @@ const orderSchema = new mongoose.Schema(
         "sent",
         "success",
         "queued",
-        "failed"
+        "failed",
+        "completed" // Add 'completed' to vendorStatus enum
       ],
       default: "pending",
       index: true

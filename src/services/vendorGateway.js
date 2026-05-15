@@ -176,7 +176,7 @@ export const processOrderWithRetry = async (orderId) => {
 
     // Lock order for processing
     const locked = await Order.findOneAndUpdate(
-      { _id: orderId, vendorStatus: "pending" },
+      { _id: orderId, vendorStatus: { $in: ["pending", "failed", "retrying"] } },
       { vendorStatus: "processing", processingStartedAt: new Date() },
       { new: true }
     );
@@ -208,7 +208,7 @@ export const processOrderWithRetry = async (orderId) => {
     }
 
     await Order.findByIdAndUpdate(orderId, {
-      vendorStatus: result.success ? "success" : (isFinalFailure ? "failed" : "failed"),
+      vendorStatus: result.success ? "success" : "failed",
       orderStatus: finalStatus,
       vendorReference: result.vendorReference || "",
       vendorResponse: result.response || result.error,
@@ -244,7 +244,7 @@ export const processOrderWithRetry = async (orderId) => {
     }
 
     await Order.findByIdAndUpdate(orderId, {
-      vendorStatus: isFinalFailure ? "failed" : "failed",
+      vendorStatus: "failed",
       orderStatus: isFinalFailure ? "failed" : "retrying",
       vendorResponse: { error: err.message },
       retryCount: currentRetryCount,

@@ -119,6 +119,7 @@ export async function syncOrderStatus(order) {
 function mapVendorStatus(status) {
   const statusMap = {
     delivered: "completed",
+    completed: "completed",
     success: "completed",
     failed: "failed",
     pending: "pending",

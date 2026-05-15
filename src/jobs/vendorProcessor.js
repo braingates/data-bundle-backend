@@ -137,7 +137,7 @@ cron.schedule("*/30 * * * * *", async () => {
       paymentStatus: "completed",
 
       vendorStatus: {
-        $in: ["pending", "queued"]
+        $in: ["pending", "queued", "failed"]
       },
 
       retryCount: {
@@ -179,7 +179,7 @@ cron.schedule("*/30 * * * * *", async () => {
               _id: order._id,
 
               vendorStatus: {
-                $in: ["pending", "queued"]
+                $in: ["pending", "queued", "failed"]
               }
             },
 
@@ -273,7 +273,7 @@ cron.schedule("*/30 * * * * *", async () => {
         // ========================================
         else if (!exceededRetries) {
 
-          vendorStatus = "queued";
+          vendorStatus = "failed";
 
           orderStatus =
             isBalanceError
