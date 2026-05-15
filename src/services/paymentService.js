@@ -8,7 +8,7 @@ export const initPayment = async ({ reference, amount, email }) => {
       reference,
       amount: Number(amount * 100),
       email,
-      callback_url: process.env.PAYSTACK_CALLBACK_URL || "http://127.0.0.1:5500/index.html",
+      callback_url: process.env.PAYSTACK_CALLBACK_URL || "https://megabytestation.vercel.app/",
       metadata: {
         reference
       }
