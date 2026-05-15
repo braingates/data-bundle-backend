@@ -33,14 +33,13 @@ export const login = async (req, res) => {
 
     const token = generateToken({ role: "admin", timestamp: Date.now() });
 
-    const isProd = process.env.NODE_ENV === "production";
     const isLocal = req.hostname === "localhost" || req.hostname === "127.0.0.1";
 
     // Set the JWT in a secure, HttpOnly cookie
     res.cookie("admin_token", token, {
       httpOnly: true, // Prevents JS access (XSS protection)
-      secure: isProd && !isLocal, // Only secure in prod and not on localhost
-      sameSite: "lax", // Allows cookie to be sent on cross-port localhost requests
+      secure: !isLocal, // sameSite: "none" requires secure: true
+      sameSite: isLocal ? "lax" : "none", // "none" allows cross-domain (Vercel to Render)
       maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
     });
 
