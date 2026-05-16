@@ -31,6 +31,7 @@ export const reconciliationService = {
           await Order.findByIdAndUpdate(order._id, {
             paymentStatus: "failed",
             orderStatus: "failed",
+            vendorStatus: "failed",
             failureReason: "Payment verification timeout"
           });
         } else {

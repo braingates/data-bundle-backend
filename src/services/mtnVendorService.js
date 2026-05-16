@@ -76,7 +76,9 @@ export async function checkMtnHealth() {
   }
 
   try {
-    const response = await axios.get(`${MTN_API_BASE}/health`, {
+    // Most vendors use a 'balance' or 'profile' check instead of a generic '/health'
+    // Defaulting to a balance check which is more reliable for health monitoring
+    const response = await axios.get(`${MTN_API_BASE.replace('/order', '/balance')}`, {
       headers: { Authorization: `Bearer ${MTN_API_KEY}` },
       timeout: 10000
     });

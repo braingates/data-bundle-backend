@@ -49,7 +49,11 @@ export const login = async (req, res) => {
       metadata: { ip: req.ip }
     });
 
-    return res.json({ success: true, message: "Logged in successfully" });
+    return res.json({ 
+      success: true, 
+      message: "Logged in successfully",
+      token 
+    });
   } catch (err) {
     logger.error("Login error", { error: err.message });
     return res.status(500).json({ error: "Authentication failed" });
@@ -64,21 +68,20 @@ export const getDashboardStats = async (req, res) => {
     // Overall stats
     const total = await Order.countDocuments();
     
-    // Check for both 'completed' and 'success' to ensure no orders are missed due to naming inconsistencies
+    // Success is defined by payment completion for high-level dashboard metrics
     const completed = await Order.countDocuments({ 
-      orderStatus: { $in: ["completed", "success", "delivered"] }, 
-      paymentStatus: { $in: ["completed", "success"] } 
+      paymentStatus: "completed"
     });
 
-    const failed = await Order.countDocuments({ orderStatus: "failed", paymentStatus: "failed" });
-    const pending = await Order.countDocuments({ paymentStatus: { $in: ["pending", "queued"] } });
-    const processing = await Order.countDocuments({ orderStatus: "processing" });
+    const failed = await Order.countDocuments({ orderStatus: "failed" });
+    const pending = await Order.countDocuments({ paymentStatus: "pending" });
+    const processing = await Order.countDocuments({ paymentStatus: "completed", orderStatus: { $ne: "completed" } });
 
     // Revenue calculations
     const financialStats = await Order.aggregate([
       {
         $match: {
-          paymentStatus: { $in: ["completed", "success"] }
+          paymentStatus: "completed"
         }
       },
       {
@@ -97,7 +100,7 @@ export const getDashboardStats = async (req, res) => {
     // Network breakdown
     const networkStats = await Order.aggregate([
       {
-        $match: { paymentStatus: { $in: ["completed", "success"] } }
+        $match: { paymentStatus: "completed" }
       },
       {
         $group: {
@@ -132,7 +135,7 @@ export const getDashboardStats = async (req, res) => {
     const last24Hours = new Date(Date.now() - 24 * 60 * 60 * 1000);
     const last24HourStats = await Order.countDocuments({
       createdAt: { $gte: last24Hours },
-      paymentStatus: { $in: ["completed", "success"] }
+      paymentStatus: "completed"
     });
 
     return res.json({

@@ -67,6 +67,7 @@ const orderSchema = new mongoose.Schema(
         "pending",
         "processing",
         "completed",
+        "delivered",
         "failed",
         "retrying",
         "pending_vendor_balance"

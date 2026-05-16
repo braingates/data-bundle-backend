@@ -8,7 +8,9 @@ export const getOrders = async (req, res) => {
       limit = 50,
       network = "",
       status = "",
-      search = ""
+      search = "",
+      sortBy = "createdAt",
+      sortOrder = "desc"
     } = req.query;
 
     // CRITICAL: Prevent public users from seeing all recent orders.
@@ -50,9 +52,15 @@ export const getOrders = async (req, res) => {
       }
     }
 
+    // Sorting configuration
+    const allowedSortFields = ["createdAt", "reference", "phone", "amount", "_id"];
+    const sortField = allowedSortFields.includes(sortBy) ? sortBy : "createdAt";
+    const sortDir = sortOrder === "asc" ? 1 : -1;
+    const sort = { [sortField]: sortDir };
+
     const skip = (Number(page) - 1) * Number(limit);
     const orders = await Order.find(query)
-      .sort({ createdAt: -1 })
+      .sort(sort)
       .skip(skip)
       .limit(Number(limit))
       .select("reference shortTrackingId network phone bundle amount paymentStatus vendorStatus orderStatus retryCount createdAt vendorReference");
