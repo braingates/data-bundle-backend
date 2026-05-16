@@ -168,6 +168,12 @@ export const processOrderWithRetry = async (orderId) => {
       throw new Error(`Order ${orderId} not found`);
     }
 
+    // Detect balance errors for specialized retry timing
+    const checkBalanceError = (res) => {
+      const text = JSON.stringify(res || "").toLowerCase();
+      return text.includes("insufficient balance");
+    };
+
     // Idempotency check
     if (order.vendorStatus === "success" || order.vendorStatus === "sent") {
       logger.info("Order already successfully sent to vendor", { reference: order.reference });
@@ -192,9 +198,11 @@ export const processOrderWithRetry = async (orderId) => {
     const currentRetryCount = (order.retryCount || 0) + 1;
     const maxAllowed = order.maxRetries || 4;
     const isFinalFailure = !result.success && currentRetryCount >= maxAllowed;
+    const isBalanceError = checkBalanceError(result.response || result.error);
 
     const finalStatus = result.success ? "completed" : (isFinalFailure ? "failed" : "retrying");
-    const nextRetryAt = (!result.success && !isFinalFailure) ? calculateNextRetry() : null;
+    const actualStatus = (!result.success && !isFinalFailure && isBalanceError) ? "pending_vendor_balance" : finalStatus;
+    const nextRetryAt = (!result.success && !isFinalFailure) ? calculateNextRetry(isBalanceError) : null;
 
     if (isFinalFailure) {
       notificationService.sendTelegram(
@@ -209,7 +217,7 @@ export const processOrderWithRetry = async (orderId) => {
 
     await Order.findByIdAndUpdate(orderId, {
       vendorStatus: result.success ? "success" : "failed",
-      orderStatus: finalStatus,
+      orderStatus: actualStatus,
       vendorReference: result.vendorReference || "",
       vendorResponse: result.response || result.error,
       completedAt: result.success ? new Date() : null,
@@ -233,7 +241,8 @@ export const processOrderWithRetry = async (orderId) => {
     
     const currentRetryCount = (order?.retryCount || 0) + 1;
     const isFinalFailure = currentRetryCount >= (order?.maxRetries || 4);
-    const nextRetryAt = !isFinalFailure ? calculateNextRetry() : null;
+    const isBalanceError = checkBalanceError(err.message);
+    const nextRetryAt = !isFinalFailure ? calculateNextRetry(isBalanceError) : null;
 
     if (isFinalFailure) {
       notificationService.sendTelegram(
@@ -245,7 +254,7 @@ export const processOrderWithRetry = async (orderId) => {
 
     await Order.findByIdAndUpdate(orderId, {
       vendorStatus: "failed",
-      orderStatus: isFinalFailure ? "failed" : "retrying",
+      orderStatus: isFinalFailure ? "failed" : (isBalanceError ? "pending_vendor_balance" : "retrying"),
       vendorResponse: { error: err.message },
       retryCount: currentRetryCount,
       nextRetryAt,
@@ -267,9 +276,9 @@ export const processOrderWithRetry = async (orderId) => {
 
 /**
  * Calculate next retry time with exponential backoff
- * Fixed Interval: 5 minutes (Total 20m for 4 retries)
+ * Logic: 10m for balance errors (30m total), 5m for others.
  */
-function calculateNextRetry() {
-  const delay = 5 * 60 * 1000; // 5 minutes in milliseconds
+function calculateNextRetry(isBalanceError = false) {
+  const delay = isBalanceError ? 10 * 60 * 1000 : 5 * 60 * 1000;
   return new Date(Date.now() + delay);
 }

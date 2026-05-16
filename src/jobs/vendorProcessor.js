@@ -242,11 +242,16 @@ cron.schedule("*/30 * * * * *", async () => {
 
         // ========================================
         // 5 MIN RETRY DELAY
+        // RETRY DELAY (10m for balance, 5m others)
         // ========================================
+        const retryDelay = isBalanceError
+          ? 10 * 60 * 1000
+          : 5 * 60 * 1000;
+
         const nextRetryAt =
           new Date(
             Date.now() +
-            5 * 60 * 1000
+            retryDelay
           );
 
         // ========================================

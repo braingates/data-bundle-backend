@@ -49,9 +49,12 @@ export const startWorker = () => {
       // Use the locked order instance to ensure we have the most current data
       const result = await dispatchToVendor(locked);
 
+      const errorText = JSON.stringify(result.response || result.error || "").toLowerCase();
+      const isBalanceError = errorText.includes("insufficient balance");
+
       const update = {
         vendorStatus: result.success ? "success" : "failed",
-        orderStatus: result.success ? "completed" : "retrying",
+        orderStatus: result.success ? "completed" : (isBalanceError ? "pending_vendor_balance" : "retrying"),
         vendorReference: result.vendorReference || "",
         vendorResponse: result.response || result.error,
         completedAt: result.success ? new Date() : undefined,
@@ -66,7 +69,7 @@ export const startWorker = () => {
       if (result.success) {
         logger.info("Order processed successfully", { reference });
       } else if (updatedOrder.retryCount < 4) {
-        const delay = 5 * 60 * 1000; // Fixed 5-minute interval
+        const delay = isBalanceError ? 10 * 60 * 1000 : 5 * 60 * 1000;
 
         await vendorQueue.add("dispatch", job.data, {
           delay,

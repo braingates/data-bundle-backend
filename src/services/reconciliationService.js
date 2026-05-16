@@ -23,7 +23,8 @@ export const reconciliationService = {
         if (paystackStatus.paid) {
           await Order.findByIdAndUpdate(order._id, {
             paymentStatus: "completed",
-            orderStatus: "queued"
+            orderStatus: "queued",
+            vendorStatus: "pending"
           });
           recovered++;
         } else if (order.retryCount >= 3) {

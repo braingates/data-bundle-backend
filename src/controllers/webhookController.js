@@ -95,6 +95,7 @@ export const paystackWebhook = async (req, res) => {
 
       order.paymentStatus = "completed";
       order.orderStatus = "queued";
+      order.vendorStatus = "pending";
       await order.save();
 
       logger.info("Payment verified via webhook", {

@@ -26,9 +26,8 @@ export const retryService = {
     }
   },
 
-  scheduleNextRetry: (order) => {
-    // Fixed 5-minute delay to ensure 4 retries fit within 20 minutes
-    const delay = 5 * 60 * 1000; 
+  scheduleNextRetry: (order, isBalanceError = false) => {
+    const delay = isBalanceError ? 10 * 60 * 1000 : 5 * 60 * 1000;
     return scheduleRetry(order._id, delay);
   }
 };
@@ -36,6 +35,9 @@ export const retryService = {
 async function processRetry(order) {
   try {
     const result = await dispatchToVendor(order);
+
+    const errorText = JSON.stringify(result.error || result.response || "").toLowerCase();
+    const isBalanceError = errorText.includes("insufficient balance");
 
     if (result.success) {
       await Order.findByIdAndUpdate(order._id, {
@@ -49,7 +51,7 @@ async function processRetry(order) {
       logger.info("Retry succeeded", { reference: order.reference });
     } else {
       const newRetryCount = (order.retryCount || 0) + 1;
-      const nextRetry = getNextRetryDate(newRetryCount);
+      const nextRetry = getNextRetryDate(newRetryCount, isBalanceError);
 
       await Order.findByIdAndUpdate(order._id, {
         retryCount: newRetryCount,
@@ -60,7 +62,7 @@ async function processRetry(order) {
       });
 
       if (newRetryCount < 4) {
-        await scheduleRetry(order._id, getNextDelay(newRetryCount));
+        await scheduleRetry(order._id, getNextDelay(newRetryCount, isBalanceError));
         logger.info("Retry scheduled", { reference: order.reference, attempt: newRetryCount });
       } else {
         logger.error("Max retries reached", { reference: order.reference });
@@ -71,13 +73,13 @@ async function processRetry(order) {
   }
 }
 
-function getNextRetryDate(retryCount) {
-  // Consistency check: Fixed 5 minute interval
-  return new Date(Date.now() + 5 * 60 * 1000);
+function getNextRetryDate(retryCount, isBalanceError = false) {
+  const delay = isBalanceError ? 10 * 60 * 1000 : 5 * 60 * 1000;
+  return new Date(Date.now() + delay);
 }
 
-function getNextDelay(retryCount) {
-  return 5 * 60 * 1000;
+function getNextDelay(retryCount, isBalanceError = false) {
+  return isBalanceError ? 10 * 60 * 1000 : 5 * 60 * 1000;
 }
 
 export default retryService;

@@ -63,6 +63,25 @@ export const createPayment = async (req, res) => {
       });
     }
 
+    // Check for duplicate pending orders within last 30 minutes
+    const thirtyMinsAgo = new Date(Date.now() - 30 * 60 * 1000);
+    const duplicate = await Order.findOne({
+      phone: phoneValidation.normalized,
+      bundle: bundle,
+      paymentStatus: "pending",
+      createdAt: { $gte: thirtyMinsAgo }
+    });
+
+    if (duplicate) {
+      const elapsedMs = Date.now() - new Date(duplicate.createdAt).getTime();
+      const remainingMins = Math.max(1, 30 - Math.floor(elapsedMs / (1000 * 60)));
+
+      return res.status(409).json({
+        error: "duplicate_pending",
+        message: `A similar order for this number is already pending. To prevent duplicate orders, please wait ${remainingMins} more minute(s) until the previous order is finalized before placing another identical order. You can check the status of your transaction on the orders page.`
+      });
+    }
+
     // Fetch reference from Vendor API instead of generating locally
     const reference = await fetchInitialReference(networkUpper);
     const shortTrackingId = await generateUniqueShortTrackingId();
@@ -152,7 +171,8 @@ export const verifyPayment = async (req, res) => {
         { reference },
         {
           paymentStatus: "completed",
-          orderStatus: "queued"
+          orderStatus: "queued",
+          vendorStatus: "pending"
         }
       );
 

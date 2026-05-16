@@ -65,22 +65,44 @@ export const login = async (req, res) => {
  */
 export const getDashboardStats = async (req, res) => {
   try {
+    const { network, status, search } = req.query;
+    const query = {};
+
+    if (network && network !== "all" && network !== "") {
+      query.network = network.toUpperCase();
+    }
+    if (status && status !== "all" && status !== "") {
+      query.orderStatus = status;
+    }
+    if (search && search !== "") {
+      const sanitizedSearch = search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      query.$or = [
+        { reference: { $regex: sanitizedSearch, $options: "i" } },
+        { phone: { $regex: sanitizedSearch, $options: "i" } },
+        { shortTrackingId: { $regex: sanitizedSearch, $options: "i" } },
+        { vendorReference: { $regex: sanitizedSearch, $options: "i" } }
+      ];
+    }
+
     // Overall stats
-    const total = await Order.countDocuments();
+    const total = await Order.countDocuments(query);
     
-    // Success is defined by payment completion for high-level dashboard metrics
+    // Successful Orders = Number of orders with completed payment status
     const completed = await Order.countDocuments({ 
+      ...query,
       paymentStatus: "completed"
     });
 
-    const failed = await Order.countDocuments({ orderStatus: "failed" });
-    const pending = await Order.countDocuments({ paymentStatus: "pending" });
-    const processing = await Order.countDocuments({ paymentStatus: "completed", orderStatus: { $ne: "completed" } });
+    const failed = await Order.countDocuments({ ...query, orderStatus: "failed" });
+    const pending = await Order.countDocuments({ ...query, paymentStatus: "pending" });
+    // Processing: Paid but not yet delivered or failed
+    const processing = await Order.countDocuments({ ...query, paymentStatus: "completed", orderStatus: { $in: ["processing", "queued", "sent", "retrying", "pending_vendor_balance"] } });
 
-    // Revenue calculations
+    // Revenue = Sum of successful orders amount | Profit = Revenue - Vendor Cost
     const financialStats = await Order.aggregate([
       {
         $match: {
+          ...query,
           paymentStatus: "completed"
         }
       },
@@ -88,7 +110,23 @@ export const getDashboardStats = async (req, res) => {
         $group: {
           _id: null,
           totalRevenue: { $sum: "$amount" },
-          totalCost: { $sum: { $ifNull: ["$vendorCost", 0] } },
+          totalCost: { 
+            $sum: { 
+              $ifNull: [
+                "$vendorCost", 
+                { $multiply: ["$amount", {
+                  $switch: {
+                    branches: [
+                      { case: { $eq: ["$network", "MTN"] }, then: 0.88 },
+                      { case: { $eq: ["$network", "TELECEL"] }, then: 0.86 },
+                      { case: { $eq: ["$network", "AIRTELTIGO"] }, then: 0.84 }
+                    ],
+                    default: 0.87
+                  }
+                }]}
+              ] 
+            } 
+          },
           avgOrderValue: { $avg: "$amount" }
         }
       }
@@ -100,7 +138,7 @@ export const getDashboardStats = async (req, res) => {
     // Network breakdown
     const networkStats = await Order.aggregate([
       {
-        $match: { paymentStatus: "completed" }
+        $match: { paymentStatus: "completed" } // Only track performance for successful payments
       },
       {
         $group: {
@@ -352,9 +390,9 @@ export const getPerformanceTrends = async (req, res) => {
         $group: {
           _id: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } },
           totalOrders: { $sum: 1 },
-          completedOrders: { $sum: { $cond: [{ $eq: ["$orderStatus", "completed"] }, 1, 0] } },
+          completedOrders: { $sum: { $cond: [{ $eq: ["$paymentStatus", "completed"] }, 1, 0] } }, // Based on payment success
           failedOrders: { $sum: { $cond: [{ $eq: ["$orderStatus", "failed"] }, 1, 0] } },
-          revenue: { $sum: { $cond: [{ $eq: ["$paymentStatus", "completed"] }, "$amount", 0] } },
+          revenue: { $sum: { $cond: [{ $eq: ["$paymentStatus", "completed"] }, "$amount", 0] } }, // Sum of paid amounts
           avgRetries: { $avg: "$retryCount" }
         }
       },
@@ -401,9 +439,9 @@ export const getVendorMetrics = async (req, res) => {
         $group: {
           _id: "$network",
           totalOrders: { $sum: 1 },
-          completedOrders: { $sum: { $cond: [{ $eq: ["$orderStatus", "completed"] }, 1, 0] } },
+          completedOrders: { $sum: { $cond: [{ $eq: ["$paymentStatus", "completed"] }, 1, 0] } }, // Based on payment success
           failedOrders: { $sum: { $cond: [{ $eq: ["$orderStatus", "failed"] }, 1, 0] } },
-          totalRevenue: { $sum: "$amount" },
+          totalRevenue: { $sum: { $cond: [{ $eq: ["$paymentStatus", "completed"] }, "$amount", 0] } }, // Sum of paid amounts
           avgRetries: { $avg: "$retryCount" }
         }
       },
