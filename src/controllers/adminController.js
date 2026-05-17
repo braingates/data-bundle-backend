@@ -84,10 +84,11 @@ export const getDashboardStats = async (req, res) => {
       ];
     }
 
-    // Overall stats
-    const total = await Order.countDocuments(query);
+    // Overall stats - Adjusted to count both successful and failed transactions
+    const totalRaw = await Order.countDocuments(query); // All transaction attempts
+    const total = await Order.countDocuments({ ...query, paymentStatus: { $in: ["completed", "failed"] } }); 
     
-    // Successful Orders = Number of orders with completed payment status
+    // Successful Payments - also based on completed payment status
     const completed = await Order.countDocuments({ 
       ...query,
       paymentStatus: "completed"
@@ -389,7 +390,7 @@ export const getPerformanceTrends = async (req, res) => {
       {
         $group: {
           _id: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } },
-          totalOrders: { $sum: 1 },
+          totalOrders: { $sum: { $cond: [{ $in: ["$paymentStatus", ["completed", "failed"]] }, 1, 0] } },
           completedOrders: { $sum: { $cond: [{ $eq: ["$paymentStatus", "completed"] }, 1, 0] } }, // Based on payment success
           failedOrders: { $sum: { $cond: [{ $eq: ["$orderStatus", "failed"] }, 1, 0] } },
           revenue: { $sum: { $cond: [{ $eq: ["$paymentStatus", "completed"] }, "$amount", 0] } }, // Sum of paid amounts
@@ -433,7 +434,7 @@ export const getVendorMetrics = async (req, res) => {
   try {
     const vendorMetrics = await Order.aggregate([
       {
-        $match: { paymentStatus: "completed" }
+        $match: { paymentStatus: { $in: ["completed", "failed"] } }
       },
       {
         $group: {

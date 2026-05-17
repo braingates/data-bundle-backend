@@ -92,6 +92,7 @@ export const dispatchToVendor = async (order) => {
     // Update order with vendor response
     await Order.findByIdAndUpdate(order._id, {
       vendorStatus: result.success ? "sent" : "failed",
+      orderStatus: result.success ? "processing" : "failed",
       vendorReference: result.vendorReference || "",
       vendorResponse: result.response || result.error,
       lastRetryAt: new Date()
@@ -200,7 +201,7 @@ export const processOrderWithRetry = async (orderId) => {
     const isFinalFailure = !result.success && currentRetryCount >= maxAllowed;
     const isBalanceError = checkBalanceError(result.response || result.error);
 
-    const finalStatus = result.success ? "completed" : (isFinalFailure ? "failed" : "retrying");
+    const finalStatus = result.success ? "processing" : (isFinalFailure ? "failed" : "retrying");
     const actualStatus = (!result.success && !isFinalFailure && isBalanceError) ? "pending_vendor_balance" : finalStatus;
     const nextRetryAt = (!result.success && !isFinalFailure) ? calculateNextRetry(isBalanceError) : null;
 
@@ -216,11 +217,10 @@ export const processOrderWithRetry = async (orderId) => {
     }
 
     await Order.findByIdAndUpdate(orderId, {
-      vendorStatus: result.success ? "success" : "failed",
+      vendorStatus: result.success ? "sent" : "failed",
       orderStatus: actualStatus,
       vendorReference: result.vendorReference || "",
       vendorResponse: result.response || result.error,
-      completedAt: result.success ? new Date() : null,
       retryCount: currentRetryCount,
       nextRetryAt,
       lastRetryAt: new Date()

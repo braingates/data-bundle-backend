@@ -53,11 +53,10 @@ export const startWorker = () => {
       const isBalanceError = errorText.includes("insufficient balance");
 
       const update = {
-        vendorStatus: result.success ? "success" : "failed",
-        orderStatus: result.success ? "completed" : (isBalanceError ? "pending_vendor_balance" : "retrying"),
+        vendorStatus: result.success ? "sent" : "failed",
+        orderStatus: result.success ? "processing" : (isBalanceError ? "pending_vendor_balance" : "retrying"),
         vendorReference: result.vendorReference || "",
         vendorResponse: result.response || result.error,
-        completedAt: result.success ? new Date() : undefined,
       };
 
       if (!result.success) {

@@ -1,5 +1,6 @@
 import cron from "node-cron";
 import Order from "../models/Order.js";
+import { auditLogger } from "../models/AuditLog.js";
 import { getVendorStatus } from "../vendors/vendorClient.js";
 
 console.log("🔄 Status sync job started...");
@@ -35,15 +36,25 @@ cron.schedule("*/20 * * * * *", async () => {
         // ==========================
         // MAP VENDOR → SYSTEM STATUS
         // ==========================
-        if (status.includes("success") || status.includes("completed")) {
+        if (status.includes("success") || status.includes("successful") || status.includes("completed") || status.includes("delivered") || status.includes("sent")) {
           vendorStatus = "completed";
-          orderStatus = "delivered";
+          orderStatus = "completed";
         } else if (status.includes("processing") || status.includes("pending")) {
           vendorStatus = "processing";
           orderStatus = "processing";
         } else if (status.includes("fail")) {
           vendorStatus = "failed";
           orderStatus = "failed";
+        }
+
+        if (orderStatus === "completed" && order.orderStatus !== "completed") {
+          auditLogger.log({
+            action: "order_delivered",
+            entity: "Order",
+            entityId: order._id,
+            orderId: order.reference,
+            metadata: { source: "status_sync_job", vendorStatus: status }
+          });
         }
 
         await Order.findByIdAndUpdate(order._id, {
