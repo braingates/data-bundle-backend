@@ -160,7 +160,12 @@ export async function syncOrderStatus(order) {
       await Order.findByIdAndUpdate(order._id, { $set: { updatedAt: new Date() } });
     }
   } catch (err) {
-    logger.error("Sync failed for order", { reference: order.reference, error: err.message });
+    logger.error("Sync failed for order", { 
+      reference: order.reference, 
+      network: order.network,
+      code: err.code, // Will show ECONNRESET
+      error: err.message 
+    });
     // Even on network/API failure, bump updatedAt so this order moves to the back 
     // of the queue, allowing other orders to be processed.
     await Order.findByIdAndUpdate(order._id, { $set: { updatedAt: new Date() } }).catch(() => {});

@@ -10,6 +10,14 @@ import notificationService from "./notificationService.js";
 const MAX_RETRIES = 4;
 
 /**
+ * Detect balance errors for specialized retry timing
+ */
+const checkBalanceError = (res) => {
+  const text = JSON.stringify(res || "").toLowerCase();
+  return text.includes("insufficient balance") || text.includes("low balance");
+};
+
+/**
  * Fetches a unique reference/tracking ID from the vendor's API.
  * Point this to your vendor's initialization endpoint if they support it.
  */
@@ -151,10 +159,18 @@ export const checkVendorHealth = async () => {
     checkAirtelTigoHealth()
   ]);
 
+  const normalize = (result) => {
+    if (result.status === "rejected") return { status: "down", error: result.reason?.message };
+    const data = result.value;
+    // If balance is 0, we flag it as 'warning' instead of 'success'
+    if (data.status === "success" && data.balance <= 0) return { ...data, status: "low_balance" };
+    return data;
+  };
+
   return {
-    MTN: mtn.status === "fulfilled" ? mtn.value : { status: "down", error: mtn.reason?.message },
-    Telecel: telecel.status === "fulfilled" ? telecel.value : { status: "down", error: telecel.reason?.message },
-    AirtelTigo: airteltigo.status === "fulfilled" ? airteltigo.value : { status: "down", error: airteltigo.reason?.message }
+    MTN: normalize(mtn),
+    Telecel: normalize(telecel),
+    AirtelTigo: normalize(airteltigo)
   };
 };
 
@@ -168,12 +184,6 @@ export const processOrderWithRetry = async (orderId) => {
     if (!order) {
       throw new Error(`Order ${orderId} not found`);
     }
-
-    // Detect balance errors for specialized retry timing
-    const checkBalanceError = (res) => {
-      const text = JSON.stringify(res || "").toLowerCase();
-      return text.includes("insufficient balance");
-    };
 
     // Idempotency check
     if (order.vendorStatus === "success" || order.vendorStatus === "sent") {
